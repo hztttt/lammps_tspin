@@ -48,7 +48,7 @@ using MathConst::MY_2PI;
 
 FixNHTSpin::FixNHTSpin(LAMMPS *lmp, int narg, char **arg) :
     FixNH(lmp, narg, arg), lattice_flag(1), spin_flag(1), spinmass_flag(0), spinmass(1.0),
-    index_vs(-1), index_sm(-1),
+    spinmass_temp(0.0), index_vs(-1), index_sm(-1),
     hbar(0.0), t_current_spin(0.0), ke_target_spin(0.0), tdof_spin(0.0),
     etas(nullptr), etas_dot(nullptr), etas_dotdot(nullptr), etas_mass(nullptr)
 {
@@ -61,13 +61,16 @@ FixNHTSpin::FixNHTSpin(LAMMPS *lmp, int narg, char **arg) :
   // parse the keywords that the parent class skipped
 
   int iarg = 3;
+  int spinmass_iarg = 0;
   while (iarg < narg) {
     if (strcmp(arg[iarg], "spinmass") == 0) {
       if (iarg + 2 > narg)
         utils::missing_cmd_args(FLERR, std::string("fix ") + style + " spinmass", error);
       spinmass = utils::numeric(FLERR, arg[iarg + 1], false, lmp);
-      if (spinmass <= 0.0) error->all(FLERR, iarg + 1, "Fix {} spinmass must be > 0", style);
+      if (spinmass <= 0.0)
+        error->all(FLERR, iarg + 1, "Fix {} spinmass timescale must be > 0", style);
       spinmass_flag = 1;
+      spinmass_iarg = iarg;
       iarg += 2;
     } else if (strcmp(arg[iarg], "lattice") == 0) {
       if (iarg + 2 > narg)
@@ -100,6 +103,23 @@ FixNHTSpin::FixNHTSpin(LAMMPS *lmp, int narg, char **arg) :
     } else {
       iarg++;    // every other keyword belongs to the parent class
     }
+  }
+
+  // the reference temperature of the spin mass is fixed here, so that the
+  // spin mass does not follow a temperature ramp or a later change of the
+  // target temperature: the start temperature of the thermostat, or for a
+  // barostat without thermostat the barostat temperature given with ptemp
+
+  if (spinmass_flag) {
+    if (tstat_flag)
+      spinmass_temp = t_start;
+    else if (p_temp_flag)
+      spinmass_temp = p_temp;
+    else
+      error->all(FLERR, spinmass_iarg,
+                 "Fix {} needs the ptemp keyword to set the spin mass from spinmass; "
+                 "alternatively assign the spin masses with the velocity/tspin command",
+                 style);
   }
 
   if (!lattice_flag && !spin_flag)
@@ -175,23 +195,21 @@ void FixNHTSpin::reset_dt()
 }
 
 /* ----------------------------------------------------------------------
-   assign the spin mass as a multiple of the atomic mass of the atom type
+   assign the spin mass from the spin timescale and the reference temperature
 ------------------------------------------------------------------------- */
 
 void FixNHTSpin::set_spin_mass()
 {
   double **sp = atom->sp;
   double *s_mass = atom->dvector[index_sm];
-  double *mass = atom->mass;
-  double *rmass = atom->rmass;
-  int *type = atom->type;
   int *mask = atom->mask;
   const int nlocal = atom->nlocal;
+  const double smass = tspin_spin_mass(force->boltz, force->mvv2e, spinmass_temp, spinmass);
 
   for (int i = 0; i < nlocal; i++) {
     if (!(mask[i] & groupbit)) continue;
     if ((sp[i][3] <= TSPIN_EPS) && (s_mass[i] <= 0.0)) continue;
-    s_mass[i] = spinmass * (rmass ? rmass[i] : mass[type[i]]);
+    s_mass[i] = smass;
   }
 }
 

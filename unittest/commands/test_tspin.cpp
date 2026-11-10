@@ -109,6 +109,12 @@ protected:
         return (index < 0) ? nullptr : lmp->atom->dvector[index];
     }
 
+    // spin mass in LAMMPS mass units from a spin timescale and a temperature
+    double spin_mass(double tau, double temp)
+    {
+        return lmp->force->boltz * temp * tau * tau / lmp->force->mvv2e;
+    }
+
     double **vspin()
     {
         int flag, cols;
@@ -123,7 +129,7 @@ TEST_F(TSpinTest, CreatesInternalState)
 {
     build();
     BEGIN_HIDE_OUTPUT();
-    command("fix 1 all nve/tspin spinmass 0.0075");
+    command("fix 1 all nve/tspin spinmass 0.041 300.0");
     END_HIDE_OUTPUT();
 
     Fix *state = lmp->modify->get_fix_by_id("TSPIN_STATE");
@@ -145,7 +151,7 @@ TEST_F(TSpinTest, RemovedStateIsDiagnosed)
 {
     build();
     BEGIN_HIDE_OUTPUT();
-    command("fix 1 all nve/tspin spinmass 0.0075");
+    command("fix 1 all nve/tspin spinmass 0.041 300.0");
     command("run 0 post no");
     command("unfix TSPIN_STATE");
     END_HIDE_OUTPUT();
@@ -164,7 +170,7 @@ TEST_F(TSpinTest, ReservedFixIdIsProtected)
     END_HIDE_OUTPUT();
 
     TEST_FAILURE(".*is reserved for the internal state of the tspin styles.*",
-                 command("fix 1 all nve/tspin spinmass 0.0075"););
+                 command("fix 1 all nve/tspin spinmass 0.041 300.0"););
 }
 
 // the spin degrees of freedom and the chain masses are fixed at setup, so a
@@ -175,7 +181,7 @@ TEST_F(TSpinTest, DynamicGroupIsRejected)
     build();
     BEGIN_HIDE_OUTPUT();
     command("group dyn dynamic all region box");
-    command("fix 1 dyn nvt/tspin temp 300 300 0.1 spinmass 0.0075");
+    command("fix 1 dyn nvt/tspin temp 300 300 0.1 spinmass 0.041");
     END_HIDE_OUTPUT();
 
     // the check happens when the fix list is initialized, not when it is created
@@ -200,7 +206,7 @@ TEST_F(TSpinTest, DilateGroupNameIsNotEaten)
     build();
     BEGIN_HIDE_OUTPUT();
     command("group spin region box");
-    command("fix 1 all npt/tspin temp 300 300 0.1 iso 0 0 1 dilate spin spinmass 0.0075");
+    command("fix 1 all npt/tspin temp 300 300 0.1 iso 0 0 1 dilate spin spinmass 0.041");
     command("run 0 post no");
     END_HIDE_OUTPUT();
     ASSERT_NE(lmp->modify->get_fix_by_id("1"), nullptr);
@@ -213,17 +219,17 @@ TEST_F(TSpinTest, SpinMassOwnership)
     build();
     BEGIN_HIDE_OUTPUT();
     command("fix 1 all nve/tspin");
-    command("velocity/tspin all create 300.0 12345 spinmass 0.02");
+    command("velocity/tspin all create 600.0 12345 spinmass 0.041");
     command("run 0 post no");
     END_HIDE_OUTPUT();
-    ASSERT_NEAR(smass()[0], 0.02 * 55.845, 1.0e-12);
+    ASSERT_NEAR(smass()[0], spin_mass(0.041, 600.0), 1.0e-12);
 
     BEGIN_HIDE_OUTPUT();
     command("unfix 1");
-    command("fix 2 all nve/tspin spinmass 0.0075");
+    command("fix 2 all nve/tspin spinmass 0.041 300.0");
     command("run 0 post no");
     END_HIDE_OUTPUT();
-    ASSERT_NEAR(smass()[0], 0.0075 * 55.845, 1.0e-12);
+    ASSERT_NEAR(smass()[0], spin_mass(0.041, 300.0), 1.0e-12);
 }
 
 // mom yes zeroes the total spin momentum, not the plain sum of velocities
@@ -232,7 +238,7 @@ TEST_F(TSpinTest, MomentumIsMassWeighted)
 {
     build();
     BEGIN_HIDE_OUTPUT();
-    command("fix 1 all nve/tspin spinmass 0.0075");
+    command("fix 1 all nve/tspin spinmass 0.041 300.0");
     command("velocity/tspin all create 300.0 12345 mom yes");
     command("run 0 post no");
     END_HIDE_OUTPUT();
@@ -247,6 +253,78 @@ TEST_F(TSpinTest, MomentumIsMassWeighted)
     for (double pd : pall) ASSERT_NEAR(pd, 0.0, 1.0e-10);
 }
 
+// spinmass gives a characteristic spin timescale; the spin mass is
+// kB T_ref tau^2 / s_ref^2 with s_ref = 1 muB, converted to mass units, and
+// does not depend on the atomic mass
+
+TEST_F(TSpinTest, SpinMassFromTimescale)
+{
+    build();
+    BEGIN_HIDE_OUTPUT();
+    command("fix 1 all nve/tspin spinmass 0.041 300.0");
+    command("run 0 post no");
+    END_HIDE_OUTPUT();
+
+    // independent check in metal units: 41 fs at 300 K reproduces the former
+    // value of 0.0075 times the atomic mass of iron to within 0.2 percent
+    const double reference = 8.617343e-5 * 300.0 * 0.041 * 0.041 / 1.0364269e-4;
+    ASSERT_NEAR(smass()[0], reference, reference * 1.0e-6);
+    ASSERT_NEAR(smass()[0], 0.0075 * 55.845, 0.002 * 0.0075 * 55.845);
+    for (int i = 0; i < lmp->atom->nlocal; ++i)
+        ASSERT_DOUBLE_EQ(smass()[i], spin_mass(0.041, 300.0));
+
+    // the Nose-Hoover styles use the start temperature, also for a ramp
+    BEGIN_HIDE_OUTPUT();
+    command("unfix 1");
+    command("fix 2 all nvt/tspin temp 10.0 600.0 0.1 spinmass 0.041");
+    command("run 0 post no");
+    END_HIDE_OUTPUT();
+    ASSERT_DOUBLE_EQ(smass()[0], spin_mass(0.041, 10.0));
+
+    // without a thermostat the barostat temperature given with ptemp is used
+    BEGIN_HIDE_OUTPUT();
+    command("unfix 2");
+    command("fix 3 all nph/tspin iso 0.0 0.0 1.0 ptemp 450.0 spinmass 0.041");
+    command("run 0 post no");
+    END_HIDE_OUTPUT();
+    ASSERT_DOUBLE_EQ(smass()[0], spin_mass(0.041, 450.0));
+
+    // velocity/tspin uses the temperature it creates
+    BEGIN_HIDE_OUTPUT();
+    command("unfix 3");
+    command("fix 4 all nve/tspin");
+    command("velocity/tspin all create 200.0 12345 spinmass 0.066");
+    END_HIDE_OUTPUT();
+    ASSERT_DOUBLE_EQ(smass()[0], spin_mass(0.066, 200.0));
+}
+
+// the former single-value nve/tspin syntax and other incomplete input are refused
+
+TEST_F(TSpinTest, SpinMassKeywordErrors)
+{
+    build();
+    TEST_FAILURE(".*Illegal fix nve/tspin spinmass command: missing argument.*",
+                 command("fix 1 all nve/tspin spinmass 0.0075"););
+    TEST_FAILURE(".*Expected floating point parameter instead of 'lattice'.*",
+                 command("fix 1 all nve/tspin spinmass 0.0075 lattice frozen"););
+    TEST_FAILURE(".*Fix nve/tspin spinmass timescale must be > 0.*",
+                 command("fix 1 all nve/tspin spinmass 0.0 300.0"););
+    TEST_FAILURE(".*Fix nve/tspin spinmass reference temperature must be > 0.*",
+                 command("fix 1 all nve/tspin spinmass 0.041 0.0"););
+    TEST_FAILURE(".*Fix nvt/tspin spinmass timescale must be > 0.*",
+                 command("fix 1 all nvt/tspin temp 300 300 0.1 spinmass -0.041"););
+    TEST_FAILURE(".*Fix nph/tspin needs the ptemp keyword to set the spin mass.*",
+                 command("fix 1 all nph/tspin iso 0.0 0.0 1.0 spinmass 0.041"););
+
+    BEGIN_HIDE_OUTPUT();
+    command("fix 1 all nve/tspin");
+    END_HIDE_OUTPUT();
+    TEST_FAILURE(".*Velocity/tspin temperature must be > 0 to set the spin mass.*",
+                 command("velocity/tspin all create 0.0 12345 spinmass 0.041"););
+    TEST_FAILURE(".*Velocity/tspin spinmass timescale must be > 0.*",
+                 command("velocity/tspin all create 300.0 12345 spinmass 0.0"););
+}
+
 // non-magnetic atoms get no spin mass, no spin velocity and no error
 
 TEST_F(TSpinTest, NonMagneticAtomsAreSkipped)
@@ -254,7 +332,7 @@ TEST_F(TSpinTest, NonMagneticAtomsAreSkipped)
     build(true);
     BEGIN_HIDE_OUTPUT();
     command("fix 1 all nve/tspin");
-    command("velocity/tspin all create 300.0 12345 spinmass 0.0075");
+    command("velocity/tspin all create 300.0 12345 spinmass 0.041");
     command("run 0 post no");
     END_HIDE_OUTPUT();
 
@@ -277,7 +355,7 @@ TEST_F(TSpinTest, TemperatureUsesActiveSpinsAndGroup)
 {
     build(true);
     BEGIN_HIDE_OUTPUT();
-    command("fix 1 all nve/tspin spinmass 0.0075");
+    command("fix 1 all nve/tspin spinmass 0.041 300.0");
     command("set group all d2_tspin_vs[1] 1.0");
     command("set group all d2_tspin_vs[2] 2.0");
     command("set group all d2_tspin_vs[3] 3.0");
@@ -294,7 +372,7 @@ TEST_F(TSpinTest, TemperatureUsesActiveSpinsAndGroup)
     auto *ts = lmp->modify->get_compute_by_id("ts");
     auto *tw = lmp->modify->get_compute_by_id("tw");
     auto *tc = lmp->modify->get_compute_by_id("tc");
-    const double expected = 14.0 * 0.0075 * 55.845 * lmp->force->mvv2e /
+    const double expected = 14.0 * spin_mass(0.041, 300.0) * lmp->force->mvv2e /
                             (3.0 * lmp->force->boltz);
     EXPECT_NEAR(ts->compute_scalar(), expected, expected * 1.0e-12);
     EXPECT_NEAR(tw->compute_scalar(), expected, expected * 1.0e-12);
@@ -302,7 +380,7 @@ TEST_F(TSpinTest, TemperatureUsesActiveSpinsAndGroup)
     EXPECT_DOUBLE_EQ(ts->dof, 3.0 * (lmp->atom->natoms - 4));
     ts->compute_vector();
     tc->compute_vector();
-    const double expected_ke = 0.5 * 14.0 * 0.0075 * 55.845 * lmp->force->mvv2e *
+    const double expected_ke = 0.5 * 14.0 * spin_mass(0.041, 300.0) * lmp->force->mvv2e *
                                (lmp->atom->natoms - 4);
     EXPECT_NEAR(ts->vector[0], expected_ke, expected_ke * 1.0e-12);
     EXPECT_NEAR(2.0 * ts->vector[0], ts->dof * lmp->force->boltz * expected, 1.0e-10);
@@ -330,14 +408,17 @@ TEST_F(TSpinTest, TemperatureCountsZeroModulusAndRecountsMasses)
     build();
     BEGIN_HIDE_OUTPUT();
     command("fix 1 all nve/tspin");
-    command("velocity/tspin all create 0.0 12345 spinmass 0.01");
+    command("velocity/tspin all create 300.0 12345 spinmass 0.05");
     command("set group all d2_tspin_vs[1] 1.0");
+    command("set group all d2_tspin_vs[2] 0.0");
+    command("set group all d2_tspin_vs[3] 0.0");
     command("compute ts all temp/tspin");
     command("run 0 post no");
     END_HIDE_OUTPUT();
 
     auto *ts = lmp->modify->get_compute_by_id("ts");
-    const double expected = 0.01 * 55.845 * lmp->force->mvv2e / (3.0 * lmp->force->boltz);
+    const double expected =
+        spin_mass(0.05, 300.0) * lmp->force->mvv2e / (3.0 * lmp->force->boltz);
     EXPECT_NEAR(ts->compute_scalar(), expected, expected * 1.0e-12);
 
     BEGIN_HIDE_OUTPUT();
@@ -368,7 +449,7 @@ TEST_F(TSpinTest, TemperatureCannotBeUsedForMechanicalPressure)
 {
     build();
     BEGIN_HIDE_OUTPUT();
-    command("fix 1 all nve/tspin spinmass 0.0075");
+    command("fix 1 all nve/tspin spinmass 0.041 300.0");
     command("compute ts all temp/tspin");
     command("run 0 post no");
     END_HIDE_OUTPUT();
@@ -395,7 +476,7 @@ TEST_F(TSpinTest, SpinCrossesZeroModulus)
     build();
     BEGIN_HIDE_OUTPUT();
     command("unfix pin");
-    command("fix 1 all nve/tspin spinmass 0.0075");
+    command("fix 1 all nve/tspin spinmass 0.041 300.0");
     command("set atom * d2_tspin_vs[1] 0.0");
     command("set atom * d2_tspin_vs[2] 0.0");
     command("set atom * d2_tspin_vs[3] 0.0");
@@ -424,7 +505,7 @@ TEST_F(TSpinTest, SpinCrossesZeroModulusNVT)
     build();
     BEGIN_HIDE_OUTPUT();
     command("unfix pin");
-    command("fix 1 all nvt/tspin temp 1.0e-20 1.0e-20 1.0e20 lattice frozen spinmass 0.0075");
+    command("fix 1 all nvt/tspin temp 1.0e-20 1.0e-20 1.0e20 lattice frozen spinmass 0.041");
     command("set atom * d2_tspin_vs[1] 0.0");
     command("set atom * d2_tspin_vs[2] 0.0");
     command("set atom * d2_tspin_vs[3] 0.0");
@@ -451,7 +532,7 @@ TEST_F(TSpinTest, InternalStateIsNotWrittenToDataFile)
 {
     build();
     BEGIN_HIDE_OUTPUT();
-    command("fix 1 all nve/tspin spinmass 0.0075");
+    command("fix 1 all nve/tspin spinmass 0.041 300.0");
     command("velocity/tspin all create 300.0 12345");
     command("run 0 post no");
     command("write_data tspin_test.data");
@@ -474,7 +555,7 @@ TEST_F(TSpinTest, RestartRestoresSpinState)
 {
     build();
     BEGIN_HIDE_OUTPUT();
-    command("fix 1 all nve/tspin spinmass 0.0075");
+    command("fix 1 all nve/tspin spinmass 0.041 300.0");
     command("velocity/tspin all create 300.0 12345");
     command("run 0 post no");
     END_HIDE_OUTPUT();
@@ -515,7 +596,7 @@ TEST_F(TSpinTest, SpinPairStylesAreRejected)
     BEGIN_HIDE_OUTPUT();
     command("pair_style spin/exchange 3.5");
     command("pair_coeff * * exchange 3.4 0.02726 0.2171 1.841");
-    command("fix 1 all nve/tspin spinmass 0.0075");
+    command("fix 1 all nve/tspin spinmass 0.041 300.0");
     END_HIDE_OUTPUT();
 
     TEST_FAILURE(".*does not provide the derivative of the energy with respect to the full spin "
@@ -555,8 +636,9 @@ TEST_F(TSpinTest, MixedSpinIntegratorsAreRejected)
                 build_dipole();
                 const auto old_fix = fmt::format("fix old oldspin nve/spin lattice {}",
                                                 old_lattice);
-                const auto aux_fix = fmt::format("fix aux auxiliary {} {} lattice {} spinmass 0.0075",
-                                                style, integrator[1], aux_lattice);
+                const auto aux_fix = fmt::format("fix aux auxiliary {} {} lattice {} spinmass {}",
+                                                style, integrator[1], aux_lattice,
+                                                (style == "nve/tspin") ? "0.041 300.0" : "0.041");
                 command(old_first ? old_fix : aux_fix);
                 command(old_first ? aux_fix : old_fix);
 
@@ -585,10 +667,10 @@ TEST_F(TSpinTest, SingleSpinIntegratorKeepsDipoleLatticeForces)
 
     const std::array<std::array<const char *, 2>, 5> integrators = {{
         {{"nve/spin", ""}},
-        {{"nve/tspin", "spinmass 0.0075"}},
-        {{"nvt/tspin", "temp 300.0 300.0 0.1 spinmass 0.0075"}},
-        {{"npt/tspin", "temp 300.0 300.0 0.1 iso 0.0 0.0 1.0 spinmass 0.0075"}},
-        {{"nph/tspin", "iso 0.0 0.0 1.0 ptemp 300.0 spinmass 0.0075"}},
+        {{"nve/tspin", "spinmass 0.041 300.0"}},
+        {{"nvt/tspin", "temp 300.0 300.0 0.1 spinmass 0.041"}},
+        {{"npt/tspin", "temp 300.0 300.0 0.1 iso 0.0 0.0 1.0 spinmass 0.041"}},
+        {{"nph/tspin", "iso 0.0 0.0 1.0 ptemp 300.0 spinmass 0.041"}},
     }};
 
     for (const auto &integrator : integrators) {
@@ -647,7 +729,7 @@ TEST_F(TSpinTest, DipoleCutProvidesFullGradient)
     command("set atom 2 spin/atom 3.0 0.6 0.0 0.8");
     command("pair_style spin/dipole/cut 4.0");
     command("pair_coeff * * 4.0");
-    command("fix 1 all nve/tspin lattice moving spinmass 1.0");
+    command("fix 1 all nve/tspin lattice moving spinmass 0.041 300.0");
     command("run 0 post no");
     END_HIDE_OUTPUT();
 
@@ -758,7 +840,8 @@ TEST_F(TSpinTest, DipoleCoupledModesConvergeToAnalyticSolution)
         command("pair_style spin/dipole/cut 4.0");
         command("pair_coeff * * 4.0");
         command(fmt::format("fix pin all spring/tspin {:.17g} 0.0", spring_k));
-        command("fix 1 all nve/tspin lattice frozen spinmass 1.0");
+        command("fix 1 all nve/tspin lattice frozen");
+        command("set group all d_tspin_smass 1.0");
         command("set group all d2_tspin_vs[1] 0.0");
         command("set group all d2_tspin_vs[2] 0.0");
         command("set group all d2_tspin_vs[3] 0.0");
@@ -808,11 +891,11 @@ TEST_F(TSpinTest, LatticeAndSpinSwitches)
 {
     build();
     BEGIN_HIDE_OUTPUT();
-    command("fix 1 all nvt/tspin temp 300 300 0.1 spinmass 0.0075 lattice frozen");
+    command("fix 1 all nvt/tspin temp 300 300 0.1 spinmass 0.041 lattice frozen");
     command("velocity/tspin all create 300.0 12345");
     command("run 0 post no");
     command("unfix 1");
-    command("fix 2 all nvt/tspin temp 300 300 0.1 spinmass 0.0075 spin frozen");
+    command("fix 2 all nvt/tspin temp 300 300 0.1 spinmass 0.041 spin frozen");
     command("run 0 post no");
     command("unfix 2");
     END_HIDE_OUTPUT();
@@ -827,7 +910,7 @@ TEST_F(TSpinTest, RespaIsRejected)
 {
     build();
     BEGIN_HIDE_OUTPUT();
-    command("fix 1 all nve/tspin spinmass 0.0075");
+    command("fix 1 all nve/tspin spinmass 0.041 300.0");
     command("run_style respa 2 2");
     END_HIDE_OUTPUT();
 

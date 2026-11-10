@@ -26,8 +26,8 @@ Syntax
 
   .. parsed-literal::
 
-       *spinmass* value = ms
-         ms = spin mass multiplier relative to atomic mass (adim)
+       *spinmass* value = tau
+         tau = characteristic spin timescale that sets the spin mass (time units)
        *lattice* value = *moving* or *frozen*
          moving = integrate the atomic positions and velocities
          frozen = hold the atoms on a fixed lattice, spins only
@@ -40,10 +40,10 @@ Examples
 
 .. code-block:: LAMMPS
 
-   fix 1 all nvt/tspin temp 300.0 300.0 0.05 spinmass 0.0075
-   fix 1 all nvt/tspin temp 10.0 600.0 0.1 lattice frozen tchain 5 spinmass 0.0075
-   fix 1 all npt/tspin temp 300.0 300.0 0.1 iso 0.0 0.0 1.0 spinmass 0.0075
-   fix 1 all nph/tspin iso 0.0 0.0 1.0 spinmass 0.0075
+   fix 1 all nvt/tspin temp 300.0 300.0 0.05 spinmass 0.041
+   fix 1 all nvt/tspin temp 300.0 300.0 0.1 lattice frozen tchain 5 spinmass 0.041
+   fix 1 all npt/tspin temp 300.0 300.0 0.1 iso 0.0 0.0 1.0 spinmass 0.041
+   fix 1 all nph/tspin iso 0.0 0.0 1.0 ptemp 300.0 spinmass 0.041
 
 Description
 """""""""""
@@ -64,6 +64,16 @@ thermostatting either the lattice or the spins.
 The spin thermostat uses the kinetic temperature defined by
 :doc:`compute temp/tspin <compute_temp_tspin>`.  Spin masses can be
 assigned with *spinmass* or :doc:`velocity/tspin <velocity_tspin>`.
+
+The *spinmass* keyword sets the spin mass from the characteristic spin
+timescale :math:`\tau_s` as described for :doc:`fix nve/tspin
+<fix_nve_tspin>`, with the reference temperature taken from this fix:
+the start temperature of the *temp* keyword for *nvt/tspin* and
+*npt/tspin*, and the value of the *ptemp* keyword for *nph/tspin*,
+which then requires *ptemp*.  The reference temperature is fixed when
+the fix is defined, so the spin mass does not follow a temperature
+ramp.  For a ramp, assign the spin masses at the intended temperature
+with :doc:`velocity/tspin <velocity_tspin>` and omit *spinmass* here.
 
 The *lattice frozen* option allows spin-only sampling with *nvt/tspin*;
 it cannot be combined with a barostat.  The longitudinal-potential and

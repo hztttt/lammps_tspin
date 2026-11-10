@@ -48,7 +48,8 @@ class FixNVETSpin : public Fix {
  protected:
   int spin_flag;      // 1 if the spin degrees of freedom are integrated
   int spinmass_flag;  // 1 if the spinmass keyword was used, then this fix owns s_mass
-  double spinmass;    // spin mass in units of the atomic mass of the type
+  double spinmass;    // characteristic spin timescale tau that sets the spin mass
+  double spinmass_temp;    // reference temperature for the spin mass, see tspin.h
   int index_vs;       // custom per-atom property holding the spin velocity
   int index_sm;       // custom per-atom property holding the spin mass
   double dtv, dtf;

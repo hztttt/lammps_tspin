@@ -80,7 +80,7 @@ static int dof_moving(int iarg, char **arg, LAMMPS *lmp)
 
 FixNVETSpin::FixNVETSpin(LAMMPS *lmp, int narg, char **arg) :
     Fix(lmp, narg, arg), lattice_flag(1), spin_flag(1), spinmass_flag(0), spinmass(1.0),
-    index_vs(-1), index_sm(-1), dtv(0.0), dtf(0.0), hbar(0.0)
+    spinmass_temp(0.0), index_vs(-1), index_sm(-1), dtv(0.0), dtf(0.0), hbar(0.0)
 {
   if (!atom->sp_flag) error->all(FLERR, "Fix {} requires atom style spin", style);
 
@@ -104,13 +104,16 @@ FixNVETSpin::FixNVETSpin(LAMMPS *lmp, int narg, char **arg) :
       spin_flag = dof_moving(iarg + 1, arg, lmp);
       iarg += 2;
     } else if (strcmp(arg[iarg], "spinmass") == 0) {
-      if (iarg + 2 > narg)
+      if (iarg + 3 > narg)
         utils::missing_cmd_args(FLERR, std::string("fix ") + style + " spinmass", error);
       spinmass = utils::numeric(FLERR, arg[iarg + 1], false, lmp);
       if (spinmass <= 0.0)
-        error->all(FLERR, iarg + 1, "Fix {} spinmass value must be > 0", style);
+        error->all(FLERR, iarg + 1, "Fix {} spinmass timescale must be > 0", style);
+      spinmass_temp = utils::numeric(FLERR, arg[iarg + 2], false, lmp);
+      if (spinmass_temp <= 0.0)
+        error->all(FLERR, iarg + 2, "Fix {} spinmass reference temperature must be > 0", style);
       spinmass_flag = 1;
-      iarg += 2;
+      iarg += 3;
     } else {
       error->all(FLERR, iarg, "Unknown fix {} keyword: {}", style, arg[iarg]);
     }
@@ -169,23 +172,21 @@ void FixNVETSpin::init()
 }
 
 /* ----------------------------------------------------------------------
-   assign the spin mass as a multiple of the atomic mass of the atom type
+   assign the spin mass from the spin timescale and the reference temperature
 ------------------------------------------------------------------------- */
 
 void FixNVETSpin::set_spin_mass()
 {
   double **sp = atom->sp;
   double *s_mass = atom->dvector[index_sm];
-  double *mass = atom->mass;
-  double *rmass = atom->rmass;
-  int *type = atom->type;
   int *mask = atom->mask;
   const int nlocal = atom->nlocal;
+  const double smass = tspin_spin_mass(force->boltz, force->mvv2e, spinmass_temp, spinmass);
 
   for (int i = 0; i < nlocal; i++) {
     if (!(mask[i] & groupbit)) continue;
     if ((sp[i][3] <= TSPIN_EPS) && (s_mass[i] <= 0.0)) continue;
-    s_mass[i] = spinmass * (rmass ? rmass[i] : mass[type[i]]);
+    s_mass[i] = smass;
   }
 }
 

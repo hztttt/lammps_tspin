@@ -23,16 +23,17 @@ Syntax
        *spin* value = *moving* or *frozen*
          moving = integrate the spins
          frozen = hold the spins fixed
-       *spinmass* value = ms
-         ms = spin mass of each atom, as a multiple of its atomic mass (adim)
+       *spinmass* values = tau Tref
+         tau = characteristic spin timescale that sets the spin mass (time units)
+         Tref = reference temperature for the spin mass (temperature units)
 
 Examples
 """"""""
 
 .. code-block:: LAMMPS
 
-   fix 1 all nve/tspin spinmass 0.0075
-   fix 1 all nve/tspin lattice frozen spinmass 0.01
+   fix 1 all nve/tspin spinmass 0.041 300.0
+   fix 1 all nve/tspin lattice frozen spinmass 0.066 160.0
    fix 1 all nve/tspin lattice moving spin moving
 
 Description
@@ -57,12 +58,28 @@ Landau-Lifshitz precession, as integrated by :doc:`fix nve/spin
 
 The *lattice* and *spin* keywords select whether atomic positions and
 velocities, or spins, are integrated.  Both also accept *yes* and *no*.
-The *spinmass* keyword sets each atom's auxiliary spin mass to the
-specified multiple of its atomic mass.  Alternatively, spin masses can
-be assigned with :doc:`velocity/tspin <velocity_tspin>` or restored from
-a restart file.
-If specified here, *spinmass* overrides previously assigned values at
-the start of each run.
+The *spinmass* keyword sets the auxiliary spin mass of each magnetic
+atom from a characteristic spin timescale :math:`\tau_s` and a
+reference temperature :math:`T_\mathrm{ref}`,
+
+.. math::
+
+   m_s = \frac{k_B T_\mathrm{ref}\,\tau_s^2}{S_\mathrm{ref}^2},
+
+with the fixed reference spin magnitude :math:`S_\mathrm{ref} = 1\,\mu_B`.
+:math:`\tau_s` is the time over which a spin moving with the thermal
+spin velocity :math:`S_\mathrm{ref}/\tau_s` at :math:`T_\mathrm{ref}`
+changes by :math:`S_\mathrm{ref}`.  It is a property of the auxiliary
+dynamics, not a measurable spin relaxation time, and it should span
+many timesteps.  The spin mass is the same for all atoms and does not
+depend on their atomic masses.  For example, with :doc:`units metal
+<units>`, *spinmass 0.041 300.0* gives a spin mass of 0.419 in mass
+units, which is about 0.0075 times the atomic mass of iron.
+
+Alternatively, spin masses can be assigned with :doc:`velocity/tspin
+<velocity_tspin>` or restored from a restart file.  If specified here,
+*spinmass* overrides previously assigned values at the start of each
+run.
 
 TSPIN requires the full Cartesian magnetic force, including its
 longitudinal component.  A compatible interaction must encode

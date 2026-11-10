@@ -30,7 +30,9 @@ neigh_modify    every 10 check yes delay 20
 fix             pin all spring/tspin 1.0 2.2
 fix_modify      pin energy yes
 
-fix             1 all nvt/tspin temp 300.0 300.0 0.05 spinmass 0.0075
+# spin mass from a spin timescale of 41 fs at the start temperature
+
+fix             1 all nvt/tspin temp 300.0 300.0 0.05 spinmass 0.041
 
 velocity        all create 300.0 4928 mom yes
 velocity/tspin  all create 300.0 4929

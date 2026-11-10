@@ -19,8 +19,8 @@ Syntax
 
   .. parsed-literal::
 
-       *spinmass* value = ms
-         ms = spin mass multiplier relative to atomic mass (adim)
+       *spinmass* value = tau
+         tau = characteristic spin timescale that sets the spin mass (time units)
        *mom* value = *yes* or *no*
          yes = remove net spin momentum for each atom type
          no = retain net spin momentum
@@ -31,7 +31,7 @@ Examples
 .. code-block:: LAMMPS
 
    fix 1 all nve/tspin
-   velocity/tspin all create 300.0 12345 spinmass 0.0075
+   velocity/tspin all create 300.0 12345 spinmass 0.041
 
 Description
 """""""""""
@@ -53,11 +53,13 @@ vanishes,
 
    \sum_{i\in\mathrm{type}}m_{s,i}\vec{v}_i^s = 0.
 
-The *spinmass* keyword sets each atom's auxiliary spin mass to the
-specified multiple of its atomic mass.  If omitted, previously assigned
-spin masses are used.  When *spinmass* is also specified in a TSPIN
-integrator, the integrator overrides these values at the start of each
-run.
+The *spinmass* keyword sets the spin mass from the characteristic spin
+timescale :math:`\tau_s` as described for :doc:`fix nve/tspin
+<fix_nve_tspin>`, with the temperature *T* of this command as the
+reference temperature; *T* must then be positive.  If omitted,
+previously assigned spin masses are used.  When *spinmass* is also
+specified in a TSPIN integrator, the integrator overrides these values
+at the start of each run, using its own reference temperature.
 
 Restrictions
 """"""""""""

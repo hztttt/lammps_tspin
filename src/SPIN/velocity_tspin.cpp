@@ -82,7 +82,16 @@ void VelocityTSpin::command(int narg, char **arg)
     if (strcmp(arg[iarg], "spinmass") == 0) {
       if (iarg + 2 > narg) utils::missing_cmd_args(FLERR, "velocity/tspin spinmass", error);
       spinmass = utils::numeric(FLERR, arg[iarg + 1], false, lmp);
-      if (spinmass <= 0.0) error->all(FLERR, iarg + 1, "Velocity/tspin spinmass must be > 0");
+      if (spinmass <= 0.0)
+        error->all(FLERR, iarg + 1, "Velocity/tspin spinmass timescale must be > 0");
+
+      // the spin mass is defined at the requested temperature, which must
+      // then be positive, since a zero spin mass would turn the spins off
+
+      if (t_desired <= 0.0)
+        error->all(FLERR, 2,
+                   "Velocity/tspin temperature must be > 0 to set the spin mass from "
+                   "spinmass; assign the spin masses in a tspin integrator instead");
       spinmass_flag = 1;
       iarg += 2;
     } else if (strcmp(arg[iarg], "mom") == 0) {
@@ -109,8 +118,6 @@ void VelocityTSpin::create(double t_desired, int seed)
   double **sp = atom->sp;
   double **s_dot = atom->darray[index_vs];
   double *s_mass = atom->dvector[index_sm];
-  double *mass = atom->mass;
-  double *rmass = atom->rmass;
   int *type = atom->type;
   int *mask = atom->mask;
   const int nlocal = atom->nlocal;
@@ -121,6 +128,8 @@ void VelocityTSpin::create(double t_desired, int seed)
   memory->create(global_dof, ntypes + 1, "velocity/tspin:global_dof");
   for (int itype = 0; itype <= ntypes; itype++) local_dof[itype] = 0;
   int nomass = 0;
+  const double smass =
+      spinmass_flag ? tspin_spin_mass(force->boltz, force->mvv2e, t_desired, spinmass) : 0.0;
 
   // assign spin masses and count spin degrees of freedom
   // atoms outside the group keep whatever spin velocity they already have
@@ -128,7 +137,7 @@ void VelocityTSpin::create(double t_desired, int seed)
   for (int i = 0; i < nlocal; i++) {
     if (!(mask[i] & groupbit)) continue;
     if ((sp[i][3] <= TSPIN_EPS) && (s_mass[i] <= 0.0)) continue;
-    if (spinmass_flag) s_mass[i] = spinmass * (rmass ? rmass[i] : mass[type[i]]);
+    if (spinmass_flag) s_mass[i] = smass;
     if (s_mass[i] <= 0.0) { nomass = 1; continue; }
     s_dot[i][0] = s_dot[i][1] = s_dot[i][2] = 0.0;
     local_dof[type[i]] += 3;

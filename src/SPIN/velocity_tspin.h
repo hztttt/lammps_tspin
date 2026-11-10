@@ -40,7 +40,7 @@ class VelocityTSpin : public Command {
   int momentum_flag;
   int index_vs, index_sm;    // custom per-atom properties, see tspin.h
   int spinmass_flag;
-  double spinmass;
+  double spinmass;    // characteristic spin timescale tau that sets the spin mass
 
   void create(double, int);
   void zero_mean(int);

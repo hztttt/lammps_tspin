@@ -93,7 +93,7 @@ commands using a harmonic modulus potential without spin-spin interactions.
    fix 1 all spring/tspin 1.0 2.2
    fix_modify 1 energy yes
    fix 2 all nve/tspin lattice frozen
-   velocity/tspin all create 300.0 12345 spinmass 0.0075
+   velocity/tspin all create 300.0 12345 spinmass 0.041
    fix 3 all langevin/tspin 300.0 300.0 0.05 48279
    compute 1 all temp/tspin
    thermo_style custom step pe c_1 c_1[1]

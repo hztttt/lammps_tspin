@@ -58,6 +58,23 @@ static constexpr char TSPIN_SMASS[] = "tspin_smass";
 
 static constexpr double TSPIN_EPS = 1.0e-8;
 
+// reference spin modulus in Bohr magnetons for the conversion below
+
+static constexpr double TSPIN_SREF = 1.0;
+
+/* ----------------------------------------------------------------------
+   spin mass from a characteristic spin timescale tau at a reference
+   temperature tref:  mu_s = kB tref tau^2 / s_ref^2
+   mu_s is in energy*time^2/muB^2; dividing by mvv2e returns it in the
+   mass units in which the spin mass is stored and used, so that the
+   spin kinetic energy is 1/2 mvv2e s_mass |dS/dt|^2
+------------------------------------------------------------------------- */
+
+static inline double tspin_spin_mass(double boltz, double mvv2e, double tref, double tau)
+{
+  return boltz * tref * tau * tau / (TSPIN_SREF * TSPIN_SREF * mvv2e);
+}
+
 /* ----------------------------------------------------------------------
    create the two custom per-atom properties unless they already exist
 ------------------------------------------------------------------------- */

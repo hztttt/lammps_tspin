@@ -35,9 +35,10 @@ neigh_modify    every 10 check yes delay 20
 fix             pin all spring/tspin 1.0 2.2
 fix_modify      pin energy yes
 
-# inertial spin dynamics, spin mass = 0.0075 * atomic mass, then 300 K
+# inertial spin dynamics, spin mass from a spin timescale of 41 fs at
+# a reference temperature of 300 K, then velocities at 300 K
 
-fix             1 all nve/tspin lattice moving spinmass 0.0075
+fix             1 all nve/tspin lattice moving spinmass 0.041 300.0
 
 velocity        all create 300.0 4928 mom yes
 velocity/tspin  all create 300.0 4929
