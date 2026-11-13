@@ -1,0 +1,26 @@
+Landau energy of the spin modulus (fix landau/spin)
+===================================================
+
+  in.spin.landau      bcc iron with an EAM potential and the single-site
+                      Landau energy E = A |S|^2 + B |S|^4 of fix landau/spin,
+                      integrated at constant energy with fix nve/tspin, in
+                      which the spin modulus is a dynamical degree of freedom.
+
+The input requires the SPIN and MANYBODY packages and uses the included
+Fe_mm.eam.fs potential.  Run it from this directory:
+
+  lmp -in in.spin.landau
+
+The Landau energy is included in pe with fix_modify landau energy yes, and
+f_landau reports it separately.  c_savg is the average spin modulus, which
+fluctuates about the minimum of the Landau energy, sqrt(-A/(2B)) = 2.1 muB.
+The conserved energy is econserve plus the auxiliary spin kinetic energy
+reported by compute temp/tspin, printed as v_etot.
+
+The coefficients are illustrative and not a fit to iron.  No magnetic pair
+interaction couples the spins here; a physical model of a magnetic material
+adds one that is compatible with variable spin moduli.
+
+The auxiliary spin velocities created by velocity/tspin depend on the number
+of MPI processes, so the spin columns of the logs for 1 and 4 processes
+differ; the lattice columns agree.

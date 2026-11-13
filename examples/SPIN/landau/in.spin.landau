@@ -1,0 +1,54 @@
+# bcc iron with a Landau energy on the spin modulus (inertial spin dynamics, NVE)
+#
+# fix landau/spin gives every spin modulus the single-site energy
+#   E = A |S|^2 + B |S|^4 + C |S|^6
+# whose minimum lies at |S| = sqrt(-A/(2B)) = 2.1 muB for the coefficients
+# below (C = 0).  The coefficients are illustrative, not a fit to iron.
+# A production run would add a magnetic pair interaction that is compatible
+# with variable spin moduli.
+#
+# The conserved quantity is econserve plus the spin kinetic energy, which the
+# thermo keyword ke does not include.  It includes the Landau energy through
+# fix_modify energy yes.
+
+units           metal
+dimension       3
+boundary        p p p
+atom_style      spin
+
+lattice         bcc 2.8665
+region          box block 0.0 4.0 0.0 4.0 0.0 4.0
+create_box      1 box
+create_atoms    1 box
+
+mass            1 55.845
+set             group all spin/atom/random 31 2.2
+
+pair_style      eam/fs
+pair_coeff      * * Fe_mm.eam.fs Fe
+
+neighbor        0.1 bin
+neigh_modify    every 10 check yes delay 20
+
+# Landau energy of the spin modulus, A in eV/muB^2 and B in eV/muB^4
+
+fix             landau all landau/spin -0.44 0.05
+fix_modify      landau energy yes
+
+fix             1 all nve/tspin lattice moving spinmass 0.0075
+
+velocity        all create 300.0 4928 mom yes loop geom
+velocity/tspin  all create 300.0 4929
+
+timestep        0.0001
+
+compute         ts all temp/tspin
+compute         smag all property/atom sp
+compute         savg all reduce ave c_smag
+variable        etot equal econserve+c_ts[1]
+
+thermo          200
+thermo_style    custom step time temp pe f_landau c_savg c_ts[1] v_etot
+thermo_modify   format float %20.15g
+
+run             2000

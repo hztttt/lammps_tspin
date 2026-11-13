@@ -286,6 +286,7 @@ accelerated styles exist.
 * :doc:`ipi <fix_ipi>` - enable LAMMPS to run as a client for i-PI path-integral simulations
 * :doc:`lambda/apip <fix_lambda_apip>` - compute switching parameter, that controls the precision of an :doc:`APIP potential <Howto_apip>`
 * :doc:`lambda/la/csp/apip <fix_lambda_la_csp_apip>` - compute a conservative switching parameter, that controls the precision of an :doc:`APIP potential <Howto_apip>`
+* :doc:`landau/spin <fix_landau_spin>` - single-site Landau energy of the spin magnitude
 * :doc:`langevin <fix_langevin>` - Langevin temperature control
 * :doc:`langevin/drude <fix_langevin_drude>` - Langevin temperature control of Drude oscillators
 * :doc:`langevin/eff <fix_langevin_eff>` - Langevin temperature control for the electron force field model

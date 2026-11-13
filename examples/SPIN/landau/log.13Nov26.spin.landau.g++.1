@@ -1,0 +1,62 @@
+LAMMPS (30 Sep 2026 - Development - patch_30Sep2026-1064-gda42d3d222)
+Lattice spacing in x,y,z = 2.8665 2.8665 2.8665
+Created orthogonal box = (0 0 0) to (11.466 11.466 11.466)
+  1 by 1 by 1 MPI processor grid
+Created 128 atoms
+  using lattice units in orthogonal box = (0 0 0) to (11.466 11.466 11.466)
+  create_atoms CPU = 0.001 seconds
+Setting atom values ...
+  128 settings made for spin/atom/random
+Reading eam/fs potential file Fe_mm.eam.fs with DATE: 2007-06-11
+Neighbor list info ...
+  update: every = 10 steps, delay = 20 steps, check = yes
+  max neighbors/atom: 2000, page size: 100000
+  master list distance cutoff = 5.4
+  ghost atom cutoff = 5.4
+  binsize = 2.7, bins = 5 5 5
+  1 neighbor lists, perpetual/occasional/extra = 1 0 0
+  (1) pair eam/fs, perpetual
+      attributes: half, newton on
+      pair build: half/bin/atomonly/newton
+      stencil: half/bin/3d
+      bin: standard
+Per MPI rank memory allocation (min/avg/max) = 5.478 | 5.478 | 5.478 Mbytes
+   Step          Time           Temp          PotEng        f_landau        c_savg        c_ts[1]         v_etot    
+         0                     0                  300    -650.222892950689           -122.66496     2.19999999999999          4.963589568    -640.334491858189
+       200                  0.02     149.700679053623    -647.920734982065    -122.830135544888     2.05941763876768     5.12878978920466    -640.334453094765
+       400                  0.04     54.0302102603999      -646.0368617239    -122.516795705919     2.06136603991373     4.81548581665775    -640.334413900037
+       600                  0.06     139.386509657276    -647.255538029551    -122.334250654666     2.19901931235294      4.6329302306296    -640.334433501854
+       800                  0.08     152.846214794834    -647.918965076615    -122.776725590303     2.03278831323843     5.07540135659648    -640.334434386359
+      1000                   0.1     147.809833482615    -647.774947335627    -122.715386412079     2.09607190293732     5.01405814443207     -640.33443728663
+      1200                  0.12     164.016459758316     -647.45468488644    -122.129072641745     2.18346568222937     4.42778572283339    -640.334398659522
+      1400                  0.14     137.048894845524    -647.458598949048    -122.575690526649     2.01644175157566     4.87438747211863    -640.334411554411
+      1600                  0.16     148.021451009299    -647.957370141247    -122.894334481587     2.13187008805625     5.19297813474715    -640.334466180487
+      1800                  0.18     162.245543543859    -647.726688305275    -122.430147450912     2.15656404127157     4.72882863680677     -640.33443059299
+      2000                   0.2     130.951482755344    -647.142502252114    -122.359689712264     2.01303184662932     4.65840809909925    -640.334389581602
+Loop time of 0.0993204 on 1 procs for 2000 steps with 128 atoms
+
+Performance: 173.982 ns/day, 0.138 hours/ns, 20136.855 timesteps/s, 2.578 Matom-step/s
+97.2% CPU use with 1 MPI tasks x no OpenMP threads
+
+MPI task timing breakdown:
+Section |  min time  |  avg time  |  max time  |%varavg| %total
+---------------------------------------------------------------
+Pair    | 0.075556   | 0.075556   | 0.075556   |   0.0 | 76.07
+Neigh   | 0.001505   | 0.001505   | 0.001505   |   0.0 |  1.52
+Comm    | 0.016064   | 0.016064   | 0.016064   |   0.0 | 16.17
+Output  | 0.00012092 | 0.00012092 | 0.00012092 |   0.0 |  0.12
+Modify  | 0.0035425  | 0.0035425  | 0.0035425  |   0.0 |  3.57
+Other   |            | 0.002532   |            |       |  2.55
+
+Nlocal:            128 ave         128 max         128 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:            727 ave         727 max         727 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:           3712 ave        3712 max        3712 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 3712
+Ave neighs/atom = 29
+Neighbor list builds = 19
+Dangerous builds = 0
+Total wall time: 0:00:00

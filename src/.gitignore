@@ -393,6 +393,8 @@
 /compute_spin.h
 /compute_temp_tspin.cpp
 /compute_temp_tspin.h
+/fix_landau_spin.cpp
+/fix_landau_spin.h
 /fix_langevin_spin.cpp
 /fix_langevin_spin.h
 /fix_langevin_tspin.cpp

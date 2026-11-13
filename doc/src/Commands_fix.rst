@@ -109,6 +109,7 @@ parenthesis: g = GPU, i = INTEL, k = KOKKOS, o = OPENMP, t = OPT.
    * :doc:`lambda/apip <fix_lambda_apip>`
    * :doc:`lambda/la/csp/apip <fix_lambda_la_csp_apip>`
    * :doc:`lambda_thermostat/apip <fix_lambda_thermostat_apip>`
+   * :doc:`landau/spin <fix_landau_spin>`
    * :doc:`langevin (k) <fix_langevin>`
    * :doc:`langevin/drude <fix_langevin_drude>`
    * :doc:`langevin/eff <fix_langevin_eff>`

@@ -77,6 +77,9 @@ The following commands support TSPIN simulations:
   velocities when combined with *nve/tspin*.
 * :doc:`fix spring/tspin <fix_spring_tspin>` provides a longitudinal
   restoring potential when needed.
+* :doc:`fix landau/spin <fix_landau_spin>` provides a single-site
+  Landau energy of the spin magnitude, the longitudinal part of a
+  Landau-Heisenberg Hamiltonian.
 * :doc:`velocity/tspin <velocity_tspin>` initializes auxiliary spin
   velocities and can assign spin masses.
 * :doc:`compute temp/tspin <compute_temp_tspin>` reports the auxiliary
