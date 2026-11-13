@@ -95,7 +95,7 @@ void FixLangevinSpin::init()
 {
   // fix_langevin_spin has to be the last defined fix
 
-  int flag_force = 0;
+  int flag_force = -1;
   int flag_lang = 0;
   const auto &fixes = modify->get_fix_list();
   for (int i = 0; i < (int) fixes.size(); i++) {
