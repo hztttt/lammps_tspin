@@ -687,3 +687,14 @@ double FixNVESpin::memory_usage()
   bytes += (double) nsectors * 2 * sizeof(int);             // stack_head + stack_foot
   return bytes;
 }
+
+/* ----------------------------------------------------------------------
+   whether the atom positions are integrated, for the spin pair styles
+------------------------------------------------------------------------- */
+
+void *FixNVESpin::extract(const char *str, int &dim)
+{
+  dim = 0;
+  if (strcmp(str, "lattice_flag") == 0) return &lattice_flag;
+  return nullptr;
+}

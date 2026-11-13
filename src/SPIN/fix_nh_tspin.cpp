@@ -533,3 +533,17 @@ void FixNHTSpin::restart(char *buf)
   for (int ich = 0; ich < mtchain; ich++) etas[ich] = list[n++];
   for (int ich = 0; ich < mtchain; ich++) etas_dot[ich] = list[n++];
 }
+
+/* ----------------------------------------------------------------------
+   whether the atom positions are integrated, for the spin pair styles,
+   and the quantities of the Nose-Hoover base class
+------------------------------------------------------------------------- */
+
+void *FixNHTSpin::extract(const char *str, int &dim)
+{
+  if (strcmp(str, "lattice_flag") == 0) {
+    dim = 0;
+    return &lattice_flag;
+  }
+  return FixNH::extract(str, dim);
+}

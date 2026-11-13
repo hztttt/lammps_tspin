@@ -40,6 +40,7 @@ class FixNVETSpin : public Fix {
   void initial_integrate(int) override;
   void final_integrate() override;
   void reset_dt() override;
+  void *extract(const char *, int &) override;
 
   // read by PairSpin::init_style()
 

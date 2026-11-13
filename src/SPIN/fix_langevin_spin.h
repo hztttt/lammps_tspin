@@ -36,6 +36,7 @@ class FixLangevinSpin : public Fix {
   void add_tdamping(double *, double *);    // add transverse damping
   void add_temperature(double[3]);
   void compute_single_langevin(int, double *, double *);
+  void *extract(const char *, int &) override;
 
  protected:
   double alpha_t;       // transverse mag. damping

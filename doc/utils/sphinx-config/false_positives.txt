@@ -1645,15 +1645,21 @@ hcp
 hdnnp
 HDNNP
 Heinemann
+Heun
 hg
 Iglesias
 inviscid
 Jaumann
+Lazaro
 Liedekerke
 Lok
 Macia
+Mentink
 Meshfree
+Palacios
 parametrization
+perspin
+Rasing
 Richtmyer
 runner
 RUNNER
@@ -3893,6 +3899,7 @@ shrinkexceed
 Shugaev
 Schur
 si
+sib
 SiC
 Siegmund
 Siepmann
@@ -4053,6 +4060,7 @@ Straatsma
 Strachan
 Stratford
 Strathclyde
+Stratonovich
 Straub
 strcmp
 streitz

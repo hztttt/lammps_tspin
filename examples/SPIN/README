@@ -16,6 +16,9 @@ This directory contains examples and applications of the SPIN package
   which the spin modulus is a dynamical degree of freedom, run both at
   constant energy and with a Nose-Hoover spin thermostat.
 
+- the sib_pc directory provides examples of the spin integrators that
+  advance all spins together, fix nve/spin/sib and fix nve/spin/pc.
+
 - the landau directory provides an example of the single-site Landau
   energy of the spin modulus, fix landau/spin, combined with inertial
   spin dynamics.

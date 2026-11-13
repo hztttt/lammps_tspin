@@ -45,7 +45,12 @@ atoms in the simulation by zeroing their precession vector.
 
 The command :doc:`fix nve/spin <fix_nve_spin>` can be used to
 perform a symplectic integration of the combined dynamics of spins
-and atomic motions.
+and atomic motions.  The commands :doc:`fix nve/spin/sib and
+nve/spin/pc <fix_nve_spin_sib>` integrate the same equations of
+motion, but advance all spins together, with a fixed number of
+magnetic field evaluations per timestep.  They also work with magnetic
+pair styles that compute the field of all spins at once, such as
+machine-learning potentials.
 
 The minimization style :doc:`min/spin <min_spin>` can be applied
 to the spins to perform a minimization of the spin configuration.

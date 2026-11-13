@@ -44,6 +44,7 @@ class FixNVESpin : public Fix {
   void setup_pre_neighbor() override;
   void pre_neighbor() override;
   double memory_usage() override;
+  void *extract(const char *, int &) override;
 
   int lattice_flag;    // lattice_flag = 0 if spins only
                        // lattice_flag = 1 if spin-lattice calc.

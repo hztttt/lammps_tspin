@@ -405,6 +405,12 @@
 /fix_nh_tspin.h
 /fix_nve_spin.cpp
 /fix_nve_spin.h
+/fix_nve_spin_pc.cpp
+/fix_nve_spin_pc.h
+/fix_nve_spin_sib.cpp
+/fix_nve_spin_sib.h
+/fix_nve_spin_sync.cpp
+/fix_nve_spin_sync.h
 /fix_nve_tspin.cpp
 /fix_nve_tspin.h
 /fix_nph_tspin.cpp

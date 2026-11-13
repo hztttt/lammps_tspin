@@ -1,0 +1,25 @@
+Synchronous spin integrators (fix nve/spin/sib and fix nve/spin/pc)
+===================================================================
+
+These inputs integrate the spin and lattice dynamics of fcc cobalt with the
+fixes that advance all spins together, every spin seeing the magnetic field
+of the same configuration:
+
+  in.spin.sib   semi-implicit midpoint method at constant energy.
+                f_integ[4] reports the average number of magnetic field
+                evaluations per timestep.  etotal includes the Zeeman energy
+                through fix_modify prec energy yes.
+
+  in.spin.pc    predictor-corrector method with a spin bath at 300 K.  The
+                transverse damping, temperature and random seed come from
+                fix langevin/spin; the lattice is not thermostatted.
+
+Both inputs require the SPIN and MANYBODY packages and use the Co potential
+of the cobalt_fcc example.  Run them from this directory:
+
+  lmp -in in.spin.sib
+  lmp -in in.spin.pc
+
+The constant-energy run does not depend on the number of MPI processes.  In
+the run with the spin bath each process draws its own random numbers, so the
+logs for 1 and 4 processes differ.

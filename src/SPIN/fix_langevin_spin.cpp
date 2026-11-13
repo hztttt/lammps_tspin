@@ -172,3 +172,17 @@ void FixLangevinSpin::compute_single_langevin(int i, double spi[3], double fmi[3
     if (temp_flag) add_temperature(fmi);
   }
 }
+
+/* ----------------------------------------------------------------------
+   damping, temperature, and seed of the bath, for spin integrators that
+   apply the thermal field themselves
+------------------------------------------------------------------------- */
+
+void *FixLangevinSpin::extract(const char *str, int &dim)
+{
+  dim = 0;
+  if (strcmp(str, "alpha") == 0) return &alpha_t;
+  if (strcmp(str, "temp") == 0) return &temp;
+  if (strcmp(str, "seed") == 0) return &seed;
+  return nullptr;
+}

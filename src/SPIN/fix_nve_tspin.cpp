@@ -352,3 +352,14 @@ void FixNVETSpin::reset_dt()
   dtf = 0.5 * update->dt * force->ftm2v;
   hbar = force->hplanck / MY_2PI;
 }
+
+/* ----------------------------------------------------------------------
+   whether the atom positions are integrated, for the spin pair styles
+------------------------------------------------------------------------- */
+
+void *FixNVETSpin::extract(const char *str, int &dim)
+{
+  dim = 0;
+  if (strcmp(str, "lattice_flag") == 0) return &lattice_flag;
+  return nullptr;
+}

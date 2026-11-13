@@ -33,6 +33,7 @@ class FixNHTSpin : public FixNH {
   void setup(int) override;
   double compute_scalar() override;
   void reset_dt() override;
+  void *extract(const char *, int &) override;
   void write_restart(FILE *) override;
   void restart(char *) override;
 

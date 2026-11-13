@@ -62,6 +62,11 @@ As an example:
 is correct, but defining a force/spin command after the langevin/spin command
 would give an error message.
 
+With :doc:`fix nve/spin/sib or nve/spin/pc <fix_nve_spin_sib>`, this
+fix only provides the transverse damping, the temperature, and the
+random number seed; the integrator applies the damping and the random
+field itself, once per timestep.
+
 Note: The random # *seed* must be a positive integer.  A Marsaglia random
 number generator is used.  Each processor uses the input seed to
 generate its own unique seed and its own stream of random numbers.
