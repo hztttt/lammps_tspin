@@ -73,7 +73,8 @@ for the :doc:`inertial spin dynamics (TSPIN) commands <fix_nve_tspin>`,
 so that it can be combined with integrators that treat the spin
 magnitude as a dynamical variable, such as :doc:`fix nve/tspin
 <fix_nve_tspin>`, :doc:`fix nvt/tspin <fix_nvt_tspin>`, and :doc:`fix
-nve/spin/llb <fix_nve_spin_llb>`.  With
+nve/spin/llb <fix_nve_spin_llb>`, and with Monte Carlo sampling of the
+magnitudes by :doc:`fix mc/spin <fix_mc_spin>`.  With
 integrators that keep the spin magnitude fixed, such as :doc:`fix
 nve/spin <fix_nve_spin>`, the Landau energy is a constant and the fix
 has no effect on the dynamics.

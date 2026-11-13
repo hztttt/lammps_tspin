@@ -49,6 +49,7 @@ class FixLandauSpin : public Fix, public SpinFieldFix {
   double site_drive(double smag) const;
 
   double longitudinal_drive(int) override;
+  double modulus_energy(int, double) override;
 
  protected:
   double coeff_a, coeff_b, coeff_c;    // coefficients of |S|^2, |S|^4, |S|^6

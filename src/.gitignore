@@ -401,6 +401,8 @@
 /fix_langevin_spin.h
 /fix_langevin_tspin.cpp
 /fix_langevin_tspin.h
+/fix_mc_spin.cpp
+/fix_mc_spin.h
 /fix_neb_spin.cpp
 /fix_neb_spin.h
 /fix_nh_tspin.cpp

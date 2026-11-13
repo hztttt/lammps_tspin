@@ -1,0 +1,48 @@
+# fcc cobalt: coupled Monte Carlo sampling of the spins and molecular dynamics
+# of the atoms
+#
+# fix mc/spin moves the spins, including their magnitudes (modulus walk),
+# with the Landau energy of fix landau/spin; fix nve and fix langevin
+# integrate and thermostat the atoms at the same temperature.  The spin
+# sweeps are done after the atoms move and before the forces are computed,
+# and the spin pair styles add their magneto-elastic forces.
+
+units           metal
+atom_style      spin
+atom_modify     map array
+boundary        p p p
+
+lattice         fcc 3.54
+region          box block 0.0 6.0 0.0 6.0 0.0 6.0
+create_box      1 box
+create_atoms    1 box
+
+mass            1 58.93
+set             group all spin/atom/random 31 1.72
+velocity        all create 300 4928459 mom yes loop geom
+
+pair_style      hybrid/overlay eam/alloy spin/exchange 4.0
+pair_coeff      * * eam/alloy Co_PurjaPun_2012.eam.alloy Co
+pair_coeff      * * spin/exchange exchange 4.0 0.0446928 0.003496 1.4885
+
+neighbor        0.1 bin
+neigh_modify    every 10 check yes delay 20
+
+fix             landau all landau/spin -0.3 0.05
+fix_modify      landau energy yes
+fix             mc all mc/spin 300.0 48279 cone 30 modulus walk modsigma 0.1
+fix             lat all langevin 300.0 300.0 0.1 48280
+fix             nve all nve
+
+timestep        0.001
+
+compute         mag all spin
+compute         smag all property/atom sp
+compute         savg all reduce ave c_smag
+variable        magnorm equal c_mag[4]
+
+thermo          50
+thermo_style    custom step temp v_magnorm c_savg pe press f_mc[1] f_mc[3]
+thermo_modify   format float %20.15g
+
+run             500

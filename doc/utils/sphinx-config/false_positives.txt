@@ -103,6 +103,7 @@ Alperen
 alphak
 alphashrink
 Alvares
+Alzate
 amap
 Amatrix
 AMD
@@ -493,6 +494,7 @@ Cao
 Capitan
 Cappelletti
 Capolungo
+Cardona
 Caro
 cartesian
 Cas
@@ -1658,8 +1660,13 @@ Lok
 Macia
 Mentink
 Meshfree
+modmax
+modmin
+modsigma
+nsweep
 Palacios
 parametrization
+Parra
 perspin
 Rasing
 Richtmyer
@@ -3766,6 +3773,7 @@ Rydbergs
 Ryzen
 rz
 Rz
+Sabogal
 Sabry
 saddlebrown
 Sadigh
@@ -4076,6 +4084,7 @@ strncmp
 strstr
 Stukowski
 Su
+Suarez
 subbox
 subboxtrans
 Subclassed

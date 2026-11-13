@@ -171,6 +171,23 @@ double FixSpringTSpin::longitudinal_drive(int i)
   return -k * (smag - s0) * MY_2PI / force->hplanck;
 }
 
+/* ----------------------------------------------------------------------
+   spring energy of local atom i at spin magnitude smag, for Monte Carlo;
+   consistent with the energy that post_force() tallies
+------------------------------------------------------------------------- */
+
+double FixSpringTSpin::modulus_energy(int i, double smag)
+{
+  if (!(atom->mask[i] & groupbit)) return 0.0;
+
+  const double *s_mass = (index_sm >= 0) ? atom->dvector[index_sm] : nullptr;
+  const bool dynamic = s_mass && (s_mass[i] > 0.0);
+  if ((atom->sp[i][3] <= TSPIN_EPS) && !dynamic) return 0.0;
+
+  const double dmod = smag - s0;
+  return 0.5 * k * dmod * dmod;
+}
+
 /* ---------------------------------------------------------------------- */
 
 void FixSpringTSpin::post_force_respa(int vflag, int ilevel, int /*iloop*/)

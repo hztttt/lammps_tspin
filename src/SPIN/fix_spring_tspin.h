@@ -43,6 +43,7 @@ class FixSpringTSpin : public Fix, public SpinFieldFix {
   void min_post_force(int) override;
   double compute_scalar() override;
   double longitudinal_drive(int) override;
+  double modulus_energy(int, double) override;
 
  private:
   double k, s0, espring;

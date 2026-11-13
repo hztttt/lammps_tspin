@@ -172,6 +172,16 @@ double FixLandauSpin::longitudinal_drive(int i)
   return site_drive(atom->sp[i][3]);
 }
 
+/* ----------------------------------------------------------------------
+   Landau energy of local atom i at spin magnitude smag, for Monte Carlo
+------------------------------------------------------------------------- */
+
+double FixLandauSpin::modulus_energy(int i, double smag)
+{
+  if (!(atom->mask[i] & groupbit)) return 0.0;
+  return site_energy(smag);
+}
+
 /* ---------------------------------------------------------------------- */
 
 void FixLandauSpin::post_force(int /*vflag*/)

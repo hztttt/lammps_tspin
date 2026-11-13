@@ -121,6 +121,7 @@ parenthesis: g = GPU, i = INTEL, k = KOKKOS, o = OPENMP, t = OPT.
    * :doc:`lb/viscous <fix_lb_viscous>`
    * :doc:`lineforce (k) <fix_lineforce>`
    * :doc:`manifoldforce <fix_manifoldforce>`
+   * :doc:`mc/spin <fix_mc_spin>`
    * :doc:`mdi/qm <fix_mdi_qm>`
    * :doc:`mdi/qmmm <fix_mdi_qmmm>`
    * :doc:`meso/move <fix_meso_move>`

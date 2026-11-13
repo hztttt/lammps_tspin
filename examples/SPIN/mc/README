@@ -1,0 +1,22 @@
+Monte Carlo sampling of the spins (fix mc/spin)
+===============================================
+
+  in.spin.mc      fcc cobalt on a frozen lattice: Metropolis sampling of the
+                  spin directions at 300 K.  The cone of trial directions is
+                  adapted during a first run and then kept fixed for the
+                  production run.
+
+  in.spin.mc_md   fcc cobalt with moving atoms: fix mc/spin samples the spin
+                  directions and magnitudes (modulus walk) with the Landau
+                  energy of fix landau/spin, while fix nve and fix langevin
+                  integrate and thermostat the atoms.
+
+Both inputs require the SPIN and MANYBODY packages and use the Co potential
+of the cobalt_fcc example.  Run them from this directory:
+
+  lmp -in in.spin.mc
+  lmp -in in.spin.mc_md
+
+Each process draws its own random numbers, so the logs for 1 and 4
+processes differ.  In parallel, every subdomain must be at least twice as
+wide as the spin cutoff, hence the 6x6x6 cell.

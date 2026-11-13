@@ -16,7 +16,9 @@
                         hzt990224@gmail.com
 
    Interface of the fixes that apply an energy to the spin magnitudes,
-   E_i(|S_i|), such as fix landau/spin and fix spring/tspin.
+   E_i(|S_i|), such as fix landau/spin and fix spring/tspin.  Spin
+   integrators that evolve the spin magnitudes need its derivative, and
+   Monte Carlo samplers its value for trial magnitudes.
 
    In their post_force() these fixes add the radial magnetic force
    fm_i += |S_i| * L_i * s_hat_i, with the longitudinal drive
@@ -40,6 +42,11 @@ class SpinFieldFix {
   // magnitude, zero for atoms outside the group of the fix
 
   virtual double longitudinal_drive(int i) = 0;
+
+  // energy E_i of local atom i if its spin magnitude were smag, zero for
+  // atoms outside the group of the fix
+
+  virtual double modulus_energy(int i, double smag) = 0;
 
  protected:
   // the fixes are never deleted through this interface; a virtual destructor

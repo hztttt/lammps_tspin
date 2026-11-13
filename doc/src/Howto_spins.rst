@@ -55,6 +55,11 @@ machine-learning potentials.  The command :doc:`fix nve/spin/llb
 <fix_langevin_spin_llb>`, adds the relaxation and thermal fluctuations
 of the spin magnitudes (Landau-Lifshitz-Bloch dynamics); the energy of
 the magnitudes can be given by :doc:`fix landau/spin <fix_landau_spin>`.
+The command :doc:`fix mc/spin <fix_mc_spin>` samples the spins with the
+Metropolis Monte Carlo method, optionally with variable magnitudes, and
+can be combined with an integrator of the atoms such as :doc:`fix nve
+<fix_nve>`; the spin pair styles then compute their magneto-elastic
+forces.
 
 The minimization style :doc:`min/spin <min_spin>` can be applied
 to the spins to perform a minimization of the spin configuration.

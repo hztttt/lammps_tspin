@@ -97,19 +97,29 @@ void PairSpin::init_style()
                force->pair_style);
 
   // the spin integrators report through Fix::extract() whether they move the
-  // atoms; the mechanical forces of the magnetic interactions are computed
-  // when any of them does
+  // atoms (1) or not (0); the mechanical forces of the magnetic interactions
+  // are computed when any of them does.  A spin sampler that leaves the atoms
+  // to other fixes, fix mc/spin, reports -1: the forces are then computed
+  // when another fix integrates the atom positions.
 
   int nintegrators = 0;
-  lattice_flag = 0;
+  int moving = 0, frozen = 0, deferred = 0, other = 0;
   for (const auto &ifix : modify->get_fix_list()) {
     int dim = -1;
     auto *flag = static_cast<int *>(ifix->extract("lattice_flag", dim));
     if (flag && (dim == 0)) {
       nintegrators++;
-      if (*flag) lattice_flag = 1;
+      if (*flag > 0)
+        moving = 1;
+      else if (*flag == 0)
+        frozen = 1;
+      else
+        deferred = 1;
+    } else if (ifix->time_integrate) {
+      other = 1;
     }
   }
+  lattice_flag = (moving || (deferred && !frozen && other)) ? 1 : 0;
 
   // checking if a spin integrator or neb/spin is a listed fix
 

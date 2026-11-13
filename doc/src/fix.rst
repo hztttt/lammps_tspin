@@ -299,6 +299,7 @@ accelerated styles exist.
 * :doc:`lineforce <fix_lineforce>` - constrain atoms to move in a line
 * :doc:`lambda_thermostat/apip <fix_lambda_thermostat_apip>` - apply energy conserving correction for an :doc:`APIP potential <Howto_apip>`
 * :doc:`manifoldforce <fix_manifoldforce>` - restrain atoms to a manifold during minimization
+* :doc:`mc/spin <fix_mc_spin>` - Metropolis Monte Carlo sampling of atomic spins
 * :doc:`mdi/qm <fix_mdi_qm>` - LAMMPS operates as a client for a quantum code via the MolSSI Driver Interface (MDI)
 * :doc:`mdi/qmmm <fix_mdi_qmmm>` - LAMMPS operates as client for QM/MM simulation with a quantum code via the MolSSI Driver Interface (MDI)
 * :doc:`meso/move <fix_meso_move>` - move mesoscopic SPH/SDPD particles in a prescribed fashion

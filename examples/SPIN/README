@@ -26,6 +26,10 @@ This directory contains examples and applications of the SPIN package
 - the llb directory provides an example of Landau-Lifshitz-Bloch dynamics,
   in which the spin magnitudes relax and fluctuate, with fix nve/spin/llb.
 
+- the mc directory provides examples of Metropolis Monte Carlo sampling
+  of the spins with fix mc/spin, on a frozen lattice and combined with
+  molecular dynamics of the atoms.
+
 - the read_restart directory provides examples allowing to write or 
   read data files, and restart magneto-mechanical simulations.  
 

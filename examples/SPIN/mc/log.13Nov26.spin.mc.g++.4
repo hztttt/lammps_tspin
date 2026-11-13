@@ -1,0 +1,178 @@
+LAMMPS (30 Sep 2026 - Development - patch_30Sep2026-1068-g3b235ce8b2-modified)
+# fcc cobalt: Metropolis Monte Carlo sampling of the spins on a frozen lattice
+#
+# Each timestep performs one sweep of fix mc/spin at 300 K.  The cone of
+# trial directions is adapted during the first run and then kept fixed.
+# f_mc[1] is the acceptance rate, f_mc[2] the cone half-angle in degrees.
+
+units           metal
+atom_style      spin
+atom_modify     map array
+boundary        p p p
+
+lattice         fcc 3.54
+Lattice spacing in x,y,z = 3.54 3.54 3.54
+region          box block 0.0 6.0 0.0 6.0 0.0 6.0
+create_box      1 box
+Created orthogonal box = (0 0 0) to (21.24 21.24 21.24)
+  1 by 2 by 2 MPI processor grid
+create_atoms    1 box
+Created 864 atoms
+  using lattice units in orthogonal box = (0 0 0) to (21.24 21.24 21.24)
+  create_atoms CPU = 0.000 seconds
+
+mass            1 58.93
+set             group all spin/atom/random 31 1.72
+Setting atom values ...
+  864 settings made for spin/atom/random
+
+pair_style      hybrid/overlay eam/alloy spin/exchange 4.0
+pair_coeff      * * eam/alloy Co_PurjaPun_2012.eam.alloy Co
+pair_coeff      * * spin/exchange exchange 4.0 0.0446928 0.003496 1.4885
+
+neighbor        0.1 bin
+neigh_modify    every 10 check yes delay 20
+
+fix             prec all precession/spin zeeman 1.0 0.0 0.0 1.0
+fix_modify      prec energy yes
+fix             mc all mc/spin 300.0 48279 cone 30
+
+compute         mag all spin
+variable        magnorm equal c_mag[4]
+
+thermo          50
+thermo_style    custom step v_magnorm pe f_mc[1] f_mc[2]
+thermo_modify   format float %20.15g
+
+run             200
+WARNING: No fixes with time integration, atoms won't move
+For more information see https://docs.lammps.org/err0028 (src/verlet.cpp:60)
+Neighbor list info ...
+  update: every = 10 steps, delay = 20 steps, check = yes
+  max neighbors/atom: 2000, page size: 100000
+  master list distance cutoff = 6.599539
+  ghost atom cutoff = 6.599539
+  binsize = 3.2997695, bins = 7 7 7
+  3 neighbor lists, perpetual/occasional/extra = 3 0 0
+  (1) pair eam/alloy, perpetual, half/full from (3)
+      attributes: half, newton on
+      pair build: halffull/newton
+      stencil: none
+      bin: none
+  (2) pair spin/exchange, perpetual, trim from (3)
+      attributes: full, newton on, cut 4.1
+      pair build: trim
+      stencil: none
+      bin: none
+  (3) fix mc/spin, perpetual
+      attributes: full, newton on
+      pair build: full/bin/atomonly
+      stencil: full/bin/3d
+      bin: standard
+Per MPI rank memory allocation (min/avg/max) = 6.324 | 6.324 | 6.324 Mbytes
+   Step       v_magnorm        PotEng        f_mc[1]        f_mc[2]    
+         0    0.0204202747205155    -3785.27149660547                    0                   30
+        50     0.454781331102794    -3904.96893802451    0.490740740740741     37.9318955730643
+       100     0.820480362690742    -3921.07154858099    0.479166666666667     34.7386431863219
+       150      0.90112198418367    -3924.72559246723    0.513888888888889     34.1039232376595
+       200     0.911365160306921    -3925.47458384872    0.502314814814815     33.8232507139207
+Loop time of 0.099315 on 4 procs for 200 steps with 864 atoms
+
+Performance: 173.992 ns/day, 0.138 hours/ns, 2013.794 timesteps/s, 1.740 Matom-step/s
+99.9% CPU use with 4 MPI tasks x no OpenMP threads
+
+MPI task timing breakdown:
+Section |  min time  |  avg time  |  max time  |%varavg| %total
+---------------------------------------------------------------
+Pair    | 0.02327    | 0.023719   | 0.024696   |   0.4 | 23.88
+Neigh   | 0          | 0          | 0          |   0.0 |  0.00
+Comm    | 0.0064634  | 0.0074227  | 0.007898   |   0.7 |  7.47
+Output  | 2.7625e-05 | 2.8916e-05 | 3.1541e-05 |   0.0 |  0.03
+Modify  | 0.067911   | 0.067938   | 0.06797    |   0.0 | 68.41
+Other   |            | 0.0002059  |            |       |  0.21
+
+Nlocal:            216 ave         216 max         216 min
+Histogram: 4 0 0 0 0 0 0 0 0 0
+Nghost:           1389 ave        1389 max        1389 min
+Histogram: 4 0 0 0 0 0 0 0 0 0
+Neighs:           9288 ave        9288 max        9288 min
+Histogram: 4 0 0 0 0 0 0 0 0 0
+FullNghs:         3888 ave        3888 max        3888 min
+Histogram: 4 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 37152
+Ave neighs/atom = 43
+Neighbor list builds = 0
+Dangerous builds = 0
+
+# production with the adapted cone kept fixed
+
+variable        angle equal f_mc[2]
+variable        cone equal ${angle}
+variable        cone equal 33.8232507139207
+unfix           mc
+fix             mc all mc/spin 300.0 48280 cone ${cone} adapt no
+fix             mc all mc/spin 300.0 48280 cone 33.8232507139207 adapt no
+run             300
+WARNING: No fixes with time integration, atoms won't move
+For more information see https://docs.lammps.org/err0028 (src/verlet.cpp:60)
+Neighbor list info ...
+  update: every = 10 steps, delay = 20 steps, check = yes
+  max neighbors/atom: 2000, page size: 100000
+  master list distance cutoff = 6.599539
+  ghost atom cutoff = 6.599539
+  binsize = 3.2997695, bins = 7 7 7
+  3 neighbor lists, perpetual/occasional/extra = 3 0 0
+  (1) pair eam/alloy, perpetual, half/full from (3)
+      attributes: half, newton on
+      pair build: halffull/newton
+      stencil: none
+      bin: none
+  (2) pair spin/exchange, perpetual, trim from (3)
+      attributes: full, newton on, cut 4.1
+      pair build: trim
+      stencil: none
+      bin: none
+  (3) fix mc/spin, perpetual
+      attributes: full, newton on
+      pair build: full/bin/atomonly
+      stencil: full/bin/3d
+      bin: standard
+Per MPI rank memory allocation (min/avg/max) = 6.324 | 6.324 | 6.324 Mbytes
+   Step       v_magnorm        PotEng        f_mc[1]        f_mc[2]    
+       200     0.911365160306921    -3925.47458384872                    0     33.8232507139207
+       250     0.916184401484904     -3925.4628432818    0.502314814814815     33.8232507139207
+       300     0.908541950961654    -3925.12595984801    0.519675925925926     33.8232507139207
+       350     0.913168247079683    -3926.11738798078    0.525462962962963     33.8232507139207
+       400     0.908112723607878    -3925.75057387026    0.512731481481482     33.8232507139207
+       450     0.911318273966113    -3924.96092910236                  0.5     33.8232507139207
+       500     0.903992153921897    -3924.20719467654    0.512731481481482     33.8232507139207
+Loop time of 0.137497 on 4 procs for 300 steps with 864 atoms
+
+Performance: 188.514 ns/day, 0.127 hours/ns, 2181.870 timesteps/s, 1.885 Matom-step/s
+99.9% CPU use with 4 MPI tasks x no OpenMP threads
+
+MPI task timing breakdown:
+Section |  min time  |  avg time  |  max time  |%varavg| %total
+---------------------------------------------------------------
+Pair    | 0.034356   | 0.034539   | 0.034772   |   0.1 | 25.12
+Neigh   | 0          | 0          | 0          |   0.0 |  0.00
+Comm    | 0.0089436  | 0.0091692  | 0.009336   |   0.2 |  6.67
+Output  | 3.3417e-05 | 3.5323e-05 | 3.6585e-05 |   0.0 |  0.03
+Modify  | 0.093431   | 0.093439   | 0.093454   |   0.0 | 67.96
+Other   |            | 0.0003138  |            |       |  0.23
+
+Nlocal:            216 ave         216 max         216 min
+Histogram: 4 0 0 0 0 0 0 0 0 0
+Nghost:           1389 ave        1389 max        1389 min
+Histogram: 4 0 0 0 0 0 0 0 0 0
+Neighs:           9288 ave        9288 max        9288 min
+Histogram: 4 0 0 0 0 0 0 0 0 0
+FullNghs:         3888 ave        3888 max        3888 min
+Histogram: 4 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 37152
+Ave neighs/atom = 43
+Neighbor list builds = 0
+Dangerous builds = 0
+Total wall time: 0:00:00
