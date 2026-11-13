@@ -23,6 +23,9 @@ This directory contains examples and applications of the SPIN package
   energy of the spin modulus, fix landau/spin, combined with inertial
   spin dynamics.
 
+- the llb directory provides an example of Landau-Lifshitz-Bloch dynamics,
+  in which the spin magnitudes relax and fluctuate, with fix nve/spin/llb.
+
 - the read_restart directory provides examples allowing to write or 
   read data files, and restart magneto-mechanical simulations.  
 

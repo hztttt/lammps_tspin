@@ -26,10 +26,11 @@ FixStyle(landau/spin,FixLandauSpin);
 #define LMP_FIX_LANDAU_SPIN_H
 
 #include "fix.h"
+#include "spin_field_fix.h"
 
 namespace LAMMPS_NS {
 
-class FixLandauSpin : public Fix {
+class FixLandauSpin : public Fix, public SpinFieldFix {
  public:
   FixLandauSpin(class LAMMPS *, int, char **);
 
@@ -46,6 +47,8 @@ class FixLandauSpin : public Fix {
   double site_energy(double smag) const;
   // -(1/hbar) dE/d|S| of one site with spin modulus smag
   double site_drive(double smag) const;
+
+  double longitudinal_drive(int) override;
 
  protected:
   double coeff_a, coeff_b, coeff_c;    // coefficients of |S|^2, |S|^4, |S|^6

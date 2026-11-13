@@ -1,0 +1,115 @@
+LAMMPS (30 Sep 2026 - Development - patch_30Sep2026-1066-g3fb780165a-modified)
+# fcc cobalt: Landau-Lifshitz-Bloch spin-lattice dynamics with fix nve/spin/llb
+#
+# The spin magnitudes are dynamical: fix landau/spin gives them the energy
+#   E = A |S|^2 + B |S|^4,   minimum at sqrt(-A/(2B)) = 1.73 muB,
+# and fix langevin/spin/llb thermostats the spin directions (alpha_perp) and
+# magnitudes (alpha_par) at 300 K.  The coefficients are illustrative.
+# c_savg is the average spin magnitude.  The lattice is not thermostatted,
+# so its temperature follows the spins.
+
+units           metal
+atom_style      spin
+atom_modify     map array
+boundary        p p p
+
+lattice         fcc 3.54
+Lattice spacing in x,y,z = 3.54 3.54 3.54
+region          box block 0.0 4.0 0.0 4.0 0.0 4.0
+create_box      1 box
+Created orthogonal box = (0 0 0) to (14.16 14.16 14.16)
+  1 by 2 by 2 MPI processor grid
+create_atoms    1 box
+Created 256 atoms
+  using lattice units in orthogonal box = (0 0 0) to (14.16 14.16 14.16)
+  create_atoms CPU = 0.004 seconds
+
+mass            1 58.93
+set             group all spin/atom/random 31 1.72
+Setting atom values ...
+  256 settings made for spin/atom/random
+velocity        all create 200 4928459 mom yes loop geom
+
+pair_style      hybrid/overlay eam/alloy spin/exchange 4.0
+pair_coeff      * * eam/alloy Co_PurjaPun_2012.eam.alloy Co
+pair_coeff      * * spin/exchange exchange 4.0 0.0446928 0.003496 1.4885
+
+neighbor        0.1 bin
+neigh_modify    every 10 check yes delay 20
+
+fix             landau all landau/spin -0.3 0.05
+fix_modify      landau energy yes
+fix             bath all langevin/spin/llb temp 300.0 alpha_perp 0.1 alpha_par 0.1 seed 48279
+fix             integ all nve/spin/llb pc lattice moving
+
+timestep        0.0001
+
+compute         mag all spin
+compute         smag all property/atom sp
+compute         savg all reduce ave c_smag
+variable        magnorm equal c_mag[4]
+
+thermo          100
+thermo_style    custom step time temp v_magnorm c_savg pe f_landau etotal
+thermo_modify   format float %20.15g
+
+run             1000
+Neighbor list info ...
+  update: every = 10 steps, delay = 20 steps, check = yes
+  max neighbors/atom: 2000, page size: 100000
+  master list distance cutoff = 6.599539
+  ghost atom cutoff = 6.599539
+  binsize = 3.2997695, bins = 5 5 5
+  2 neighbor lists, perpetual/occasional/extra = 2 0 0
+  (1) pair eam/alloy, perpetual
+      attributes: half, newton on
+      pair build: half/bin/atomonly/newton
+      stencil: half/bin/3d
+      bin: standard
+  (2) pair spin/exchange, perpetual
+      attributes: full, newton on, cut 4.1
+      pair build: full/bin/atomonly
+      stencil: full/bin/3d
+      bin: standard
+Per MPI rank memory allocation (min/avg/max) = 5.654 | 5.654 | 5.654 Mbytes
+   Step          Time           Temp        v_magnorm        c_savg         PotEng        f_landau        TotEng    
+         0                     0      200.01086034278   0.0623486229526497                 1.72    -1235.90255815633       -115.177848832    -1229.30993278992
+       100                  0.01     164.968651737144   0.0841849181136712     1.72765449814898    -1234.17409230681    -111.609645084866    -1228.73650498659
+       200                  0.02     89.0412393496175    0.104557483582363     1.73838287959308    -1233.54856366354    -111.260876447583    -1230.61364536866
+       300                  0.03     40.4430345190468    0.122617031602596     1.73900833387632    -1236.27379084535    -111.887644320343    -1234.94073435627
+       400                  0.04     50.6977066784198    0.137393534453253       1.728663870487    -1239.52186929698    -111.866628973189    -1237.85080510329
+       500                  0.05     87.0562996840193    0.198449730191434     1.73815001779006    -1244.93025319505    -111.755767685591    -1242.06076116537
+       600                  0.06      108.08867831593    0.229120681718338     1.74414414425648    -1249.66273892785    -112.108742366611     -1246.0999915787
+       700                  0.07     106.137496859408    0.241970110113486     1.73766481878642    -1252.63214709391    -111.919607922285    -1249.13371329424
+       800                  0.08     104.542841147992    0.273433445739339     1.73511415054559    -1254.97599104731    -111.977993138934    -1251.53011923191
+       900                  0.09     114.408386111286    0.308779170058557     1.73613667215052    -1258.21879249496    -112.354330159777    -1254.44773912758
+      1000                   0.1     123.437203201654    0.330186412813612     1.75001411738821    -1260.37573460984    -112.485540489597    -1256.30707935986
+Loop time of 0.239798 on 4 procs for 1000 steps with 256 atoms
+
+Performance: 36.030 ns/day, 0.666 hours/ns, 4170.172 timesteps/s, 1.068 Matom-step/s
+97.6% CPU use with 4 MPI tasks x no OpenMP threads
+
+MPI task timing breakdown:
+Section |  min time  |  avg time  |  max time  |%varavg| %total
+---------------------------------------------------------------
+Pair    | 0.059339   | 0.062979   | 0.064872   |   0.9 | 26.26
+Neigh   | 0.00081696 | 0.00084591 | 0.00087692 |   0.0 |  0.35
+Comm    | 0.038647   | 0.040603   | 0.044368   |   1.1 | 16.93
+Output  | 0.00017588 | 0.00018212 | 0.000195   |   0.0 |  0.08
+Modify  | 0.13337    | 0.13408    | 0.13482    |   0.1 | 55.91
+Other   |            | 0.001113   |            |       |  0.46
+
+Nlocal:             64 ave          72 max          60 min
+Histogram: 2 0 1 0 0 0 0 0 0 1
+Nghost:            843 ave         847 max         835 min
+Histogram: 1 0 0 0 0 0 0 1 0 2
+Neighs:        3216.25 ave        3682 max        3046 min
+Histogram: 3 0 0 0 0 0 0 0 0 1
+FullNghs:         1152 ave        1296 max        1080 min
+Histogram: 2 0 1 0 0 0 0 0 0 1
+
+Total # of neighbors = 12865
+Ave neighs/atom = 50.253906
+Neighbor list builds = 7
+Dangerous builds = 0
+Total wall time: 0:00:00

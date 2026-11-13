@@ -72,7 +72,8 @@ for the :doc:`inertial spin dynamics (TSPIN) commands <fix_nve_tspin>`,
 :math:`\vec{fm}_i = (|\vec{S}_i|/\hbar)\,\vec{F}^{m}_{i,\mathrm{L}}`,
 so that it can be combined with integrators that treat the spin
 magnitude as a dynamical variable, such as :doc:`fix nve/tspin
-<fix_nve_tspin>` and :doc:`fix nvt/tspin <fix_nvt_tspin>`.  With
+<fix_nve_tspin>`, :doc:`fix nvt/tspin <fix_nvt_tspin>`, and :doc:`fix
+nve/spin/llb <fix_nve_spin_llb>`.  With
 integrators that keep the spin magnitude fixed, such as :doc:`fix
 nve/spin <fix_nve_spin>`, the Landau energy is a constant and the fix
 has no effect on the dynamics.
@@ -122,6 +123,7 @@ Related commands
 """"""""""""""""
 
 :doc:`fix spring/tspin <fix_spring_tspin>`,
+:doc:`fix nve/spin/llb <fix_nve_spin_llb>`,
 :doc:`fix nve/tspin <fix_nve_tspin>`,
 :doc:`fix nvt/tspin <fix_nvt_tspin>`,
 :doc:`fix langevin/tspin <fix_langevin_tspin>`

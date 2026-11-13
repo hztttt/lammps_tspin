@@ -50,7 +50,11 @@ nve/spin/pc <fix_nve_spin_sib>` integrate the same equations of
 motion, but advance all spins together, with a fixed number of
 magnetic field evaluations per timestep.  They also work with magnetic
 pair styles that compute the field of all spins at once, such as
-machine-learning potentials.
+machine-learning potentials.  The command :doc:`fix nve/spin/llb
+<fix_nve_spin_llb>`, with the spin bath :doc:`fix langevin/spin/llb
+<fix_langevin_spin_llb>`, adds the relaxation and thermal fluctuations
+of the spin magnitudes (Landau-Lifshitz-Bloch dynamics); the energy of
+the magnitudes can be given by :doc:`fix landau/spin <fix_landau_spin>`.
 
 The minimization style :doc:`min/spin <min_spin>` can be applied
 to the spins to perform a minimization of the spin configuration.

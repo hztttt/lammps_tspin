@@ -367,6 +367,7 @@ Blaise
 blanchedalmond
 blength
 blo
+Bloch
 blockier
 blockiness
 blocksize
@@ -1447,6 +1448,7 @@ ganzenmueller
 Ganzenmuller
 Gao
 Gapsys
+Garanin
 Garg
 gasses
 Gathert

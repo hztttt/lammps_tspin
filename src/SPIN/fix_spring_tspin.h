@@ -26,10 +26,11 @@ FixStyle(spring/tspin,FixSpringTSpin);
 #define LMP_FIX_SPRING_TSPIN_H
 
 #include "fix.h"
+#include "spin_field_fix.h"
 
 namespace LAMMPS_NS {
 
-class FixSpringTSpin : public Fix {
+class FixSpringTSpin : public Fix, public SpinFieldFix {
  public:
   FixSpringTSpin(class LAMMPS *, int, char **);
 
@@ -41,6 +42,7 @@ class FixSpringTSpin : public Fix {
   void post_force_respa(int, int, int) override;
   void min_post_force(int) override;
   double compute_scalar() override;
+  double longitudinal_drive(int) override;
 
  private:
   double k, s0, espring;

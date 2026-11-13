@@ -153,6 +153,24 @@ void FixSpringTSpin::post_force(int /*vflag*/)
   }
 }
 
+/* ----------------------------------------------------------------------
+   longitudinal drive -(1/hbar) dU/d|S| of local atom i, for spin
+   integrators that evolve the spin magnitudes; consistent with the force
+   that post_force() applies
+------------------------------------------------------------------------- */
+
+double FixSpringTSpin::longitudinal_drive(int i)
+{
+  if (!(atom->mask[i] & groupbit)) return 0.0;
+
+  const double smag = atom->sp[i][3];
+  const double *s_mass = (index_sm >= 0) ? atom->dvector[index_sm] : nullptr;
+  const bool dynamic = s_mass && (s_mass[i] > 0.0);
+  if ((smag <= TSPIN_EPS) && !dynamic) return 0.0;
+
+  return -k * (smag - s0) * MY_2PI / force->hplanck;
+}
+
 /* ---------------------------------------------------------------------- */
 
 void FixSpringTSpin::post_force_respa(int vflag, int ilevel, int /*iloop*/)

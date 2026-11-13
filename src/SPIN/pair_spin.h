@@ -32,6 +32,9 @@ class PairSpin : public Pair {
 
   void compute(int, int) override {}
   virtual void compute_single_pair(int, double *) {}
+
+  // 1 if fm encodes the derivative with respect to the full spin vector
+  int has_full_spin_gradient() const { return full_spin_gradient; }
   double memory_usage() override;
 
   // storing magnetic energies

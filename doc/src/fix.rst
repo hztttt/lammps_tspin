@@ -291,6 +291,7 @@ accelerated styles exist.
 * :doc:`langevin/drude <fix_langevin_drude>` - Langevin temperature control of Drude oscillators
 * :doc:`langevin/eff <fix_langevin_eff>` - Langevin temperature control for the electron force field model
 * :doc:`langevin/spin <fix_langevin_spin>` - Langevin temperature control for a spin or spin-lattice system
+* :doc:`langevin/spin/llb <fix_langevin_spin_llb>` - spin bath for Landau-Lifshitz-Bloch dynamics
 * :doc:`langevin/tspin <fix_langevin_tspin>` - Langevin temperature control for inertial spin dynamics
 * :doc:`lb/fluid <fix_lb_fluid>` - lattice-Boltzmann fluid on a uniform mesh
 * :doc:`lb/momentum <fix_lb_momentum>` - :doc:`fix momentum <fix_momentum>` replacement for use with a lattice-Boltzmann fluid
@@ -342,6 +343,7 @@ accelerated styles exist.
 * :doc:`nve/sphere <fix_nve_sphere>` - NVE for spherical particles
 * :doc:`nve/bpm/sphere <fix_nve_bpm_sphere>` - NVE for spherical particles used in the BPM package
 * :doc:`nve/spin <fix_nve_spin>` - NVE for a spin or spin-lattice system
+* :doc:`nve/spin/llb <fix_nve_spin_llb>` - Landau-Lifshitz-Bloch dynamics of spins with variable magnitude
 * :doc:`nve/spin/pc <fix_nve_spin_sib>` - predictor-corrector integration of a spin or spin-lattice system
 * :doc:`nve/spin/sib <fix_nve_spin_sib>` - semi-implicit midpoint integration of a spin or spin-lattice system
 * :doc:`nve/tspin <fix_nve_tspin>` - NVE for inertial spin dynamics with a dynamical spin modulus

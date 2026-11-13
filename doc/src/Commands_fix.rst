@@ -114,6 +114,7 @@ parenthesis: g = GPU, i = INTEL, k = KOKKOS, o = OPENMP, t = OPT.
    * :doc:`langevin/drude <fix_langevin_drude>`
    * :doc:`langevin/eff <fix_langevin_eff>`
    * :doc:`langevin/spin <fix_langevin_spin>`
+   * :doc:`langevin/spin/llb <fix_langevin_spin_llb>`
    * :doc:`langevin/tspin <fix_langevin_tspin>`
    * :doc:`lb/fluid <fix_lb_fluid>`
    * :doc:`lb/momentum <fix_lb_momentum>`
@@ -164,6 +165,7 @@ parenthesis: g = GPU, i = INTEL, k = KOKKOS, o = OPENMP, t = OPT.
    * :doc:`nve/sphere (ko) <fix_nve_sphere>`
    * :doc:`nve/bpm/sphere <fix_nve_bpm_sphere>`
    * :doc:`nve/spin <fix_nve_spin>`
+   * :doc:`nve/spin/llb <fix_nve_spin_llb>`
    * :doc:`nve/spin/pc <fix_nve_spin_sib>`
    * :doc:`nve/spin/sib <fix_nve_spin_sib>`
    * :doc:`nve/tspin <fix_nve_tspin>`

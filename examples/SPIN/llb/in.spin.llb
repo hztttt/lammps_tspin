@@ -1,0 +1,47 @@
+# fcc cobalt: Landau-Lifshitz-Bloch spin-lattice dynamics with fix nve/spin/llb
+#
+# The spin magnitudes are dynamical: fix landau/spin gives them the energy
+#   E = A |S|^2 + B |S|^4,   minimum at sqrt(-A/(2B)) = 1.73 muB,
+# and fix langevin/spin/llb thermostats the spin directions (alpha_perp) and
+# magnitudes (alpha_par) at 300 K.  The coefficients are illustrative.
+# c_savg is the average spin magnitude.  The lattice is not thermostatted,
+# so its temperature follows the spins.
+
+units           metal
+atom_style      spin
+atom_modify     map array
+boundary        p p p
+
+lattice         fcc 3.54
+region          box block 0.0 4.0 0.0 4.0 0.0 4.0
+create_box      1 box
+create_atoms    1 box
+
+mass            1 58.93
+set             group all spin/atom/random 31 1.72
+velocity        all create 200 4928459 mom yes loop geom
+
+pair_style      hybrid/overlay eam/alloy spin/exchange 4.0
+pair_coeff      * * eam/alloy Co_PurjaPun_2012.eam.alloy Co
+pair_coeff      * * spin/exchange exchange 4.0 0.0446928 0.003496 1.4885
+
+neighbor        0.1 bin
+neigh_modify    every 10 check yes delay 20
+
+fix             landau all landau/spin -0.3 0.05
+fix_modify      landau energy yes
+fix             bath all langevin/spin/llb temp 300.0 alpha_perp 0.1 alpha_par 0.1 seed 48279
+fix             integ all nve/spin/llb pc lattice moving
+
+timestep        0.0001
+
+compute         mag all spin
+compute         smag all property/atom sp
+compute         savg all reduce ave c_smag
+variable        magnorm equal c_mag[4]
+
+thermo          100
+thermo_style    custom step time temp v_magnorm c_savg pe f_landau etotal
+thermo_modify   format float %20.15g
+
+run             1000

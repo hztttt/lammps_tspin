@@ -395,6 +395,8 @@
 /compute_temp_tspin.h
 /fix_landau_spin.cpp
 /fix_landau_spin.h
+/fix_langevin_spin_llb.cpp
+/fix_langevin_spin_llb.h
 /fix_langevin_spin.cpp
 /fix_langevin_spin.h
 /fix_langevin_tspin.cpp
@@ -405,6 +407,8 @@
 /fix_nh_tspin.h
 /fix_nve_spin.cpp
 /fix_nve_spin.h
+/fix_nve_spin_llb.cpp
+/fix_nve_spin_llb.h
 /fix_nve_spin_pc.cpp
 /fix_nve_spin_pc.h
 /fix_nve_spin_sib.cpp
@@ -449,6 +453,7 @@
 /pair_spin_magelec.h
 /pair_spin_neel.cpp
 /pair_spin_neel.h
+/spin_field_fix.h
 /tspin.h
 /velocity_tspin.cpp
 /velocity_tspin.h

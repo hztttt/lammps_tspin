@@ -1,0 +1,18 @@
+Landau-Lifshitz-Bloch spin dynamics (fix nve/spin/llb)
+======================================================
+
+  in.spin.llb   fcc cobalt with spin magnitudes that relax and fluctuate:
+                fix landau/spin gives the magnitudes an energy, and
+                fix langevin/spin/llb thermostats the spin directions and
+                magnitudes at 300 K.  fix nve/spin/llb integrates the
+                spins with the predictor-corrector scheme and the atoms
+                with velocity Verlet.  c_savg is the average spin
+                magnitude.
+
+The input requires the SPIN and MANYBODY packages and uses the Co potential
+of the cobalt_fcc example.  Run it from this directory:
+
+  lmp -in in.spin.llb
+
+Each process draws its own random numbers, so the logs for 1 and 4
+processes differ.

@@ -161,6 +161,17 @@ double FixLandauSpin::site_drive(double smag) const
   return -2.0 * smag * (coeff_a + s2 * (2.0 * coeff_b + 3.0 * s2 * coeff_c)) / hbar;
 }
 
+/* ----------------------------------------------------------------------
+   longitudinal drive of local atom i, for spin integrators that evolve
+   the spin magnitudes
+------------------------------------------------------------------------- */
+
+double FixLandauSpin::longitudinal_drive(int i)
+{
+  if (!(atom->mask[i] & groupbit)) return 0.0;
+  return site_drive(atom->sp[i][3]);
+}
+
 /* ---------------------------------------------------------------------- */
 
 void FixLandauSpin::post_force(int /*vflag*/)

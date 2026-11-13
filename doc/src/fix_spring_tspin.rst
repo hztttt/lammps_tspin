@@ -44,8 +44,9 @@ which produces the radial magnetic force
    -K(|\vec{S}_i|-S_0)\hat{s}_i.
 
 The spring force is purely radial and produces no direct spin torque.
-This fix is useful with :doc:`TSPIN integrators <fix_nve_tspin>` when
-the magnetic potential does not provide a longitudinal restoring force.
+This fix is useful with :doc:`TSPIN integrators <fix_nve_tspin>` and
+with :doc:`fix nve/spin/llb <fix_nve_spin_llb>` when the magnetic
+potential does not provide a longitudinal restoring force.
 
 ----------
 
