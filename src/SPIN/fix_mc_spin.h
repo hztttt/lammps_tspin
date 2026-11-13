@@ -67,13 +67,19 @@ class FixMCSpin : public Fix {
 
   std::vector<class Pair *> spin_pairs;
   std::vector<int> pair_kind;
-  std::vector<double> pair_cutsq;
+  std::vector<std::vector<double>> pair_cutsq;    // per pair of types, < 0 where not applied
   std::vector<class FixPrecessionSpin *> precession_fixes;
   std::vector<class SpinFieldFix *> modulus_fixes;
 
   class NeighList *list;
-  class RanMars *random;
+  class RanMars *random;    // with energy global, the same numbers on all processors
   std::vector<int> order;
+  std::vector<tagint> trial_tags;    // atom IDs in the order of a sweep (energy global)
+
+  // periodic images of the local atoms on this processor (energy local, serial)
+
+  int image_flag;
+  std::vector<int> image_head, image_next;
 
   // sectoring of the subdomains for parallel sweeps, as in fix nve/spin
 
@@ -81,16 +87,21 @@ class FixMCSpin : public Fix {
   double rsec[3];
   int *stack_head, *stack_foot, *forward_stacks, *backward_stacks;
 
+  double bond_energy(int, const double *, int);
   double single_spin_energy(int, const double *, double);
   double single_site_energy(int, const double *);
   double magnetic_energy();
+  double pair_energy_local();
   double model_energy();
   void clear_forces();
   void set_spin(int, const double *, double);
   void propose_direction(const double *, double *);
   void mc_single_spin(int);
-  void mc_sweep();
+  void mc_global_spin(int);
+  void local_sweep();
+  void global_sweep();
   void shuffle_and_try(int);
+  void link_images();
   void mc_diagnostics();
   void verify_energy_local();
   void verify_energy_global();

@@ -38,17 +38,23 @@
 
    Energies:
      energy local    the energy change of a move is evaluated from the bonds
-                     of the moved spin only, with the energy functions of
-                     the spin pair styles spin/exchange, spin/exchange/
-                     biquadratic and spin/neel, plus the single-site terms
-                     of fix precession/spin and of fixes implementing
-                     SpinFieldFix (fix landau/spin, fix spring/tspin).  In
+                     of the moved spin only, with the energy functions and
+                     the cutoffs of each pair of atom types of the spin pair
+                     styles spin/exchange, spin/exchange/biquadratic and
+                     spin/neel, plus the single-site terms of fix
+                     precession/spin and of fixes implementing SpinFieldFix
+                     (fix landau/spin, fix spring/tspin).  In serial, the
+                     periodic images of a moved spin are updated with it.  In
                      parallel, the subdomains are divided into sectors as in
                      fix nve/spin, so that spins attempted at the same time
                      on different processors do not interact.
      energy global   every move is scored by re-running the whole pair
                      style, for pair styles without a local energy, such as
-                     machine-learning potentials; serial only.
+                     machine-learning potentials.  The moves are attempted
+                     one after another for the whole system, each pair
+                     evaluation is shared by all processors, and all
+                     processors draw the same random numbers, so the
+                     trajectory does not depend on the number of processors.
 ------------------------------------------------------------------------- */
 
 #include "fix_mc_spin.h"
@@ -66,6 +72,7 @@
 #include "neigh_list.h"
 #include "neighbor.h"
 #include "pair.h"
+#include "pair_hybrid.h"
 #include "pair_spin.h"
 #include "pair_spin_exchange.h"
 #include "pair_spin_exchange_biquadratic.h"
@@ -77,6 +84,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <unordered_map>
 
 using namespace LAMMPS_NS;
 using namespace FixConst;
@@ -89,14 +97,13 @@ FixMCSpin::FixMCSpin(LAMMPS *lmp, int narg, char **arg) :
     cone(30.0 * MY_PI / 180.0), cone_target(0.5), adapt_flag(1), modulus_flag(0), jacobian_flag(1),
     mod_sigma(0.05), mod_min(0.1), mod_max(5.0), energy_global(0), lattice_flag(-1), naccept(0.0),
     nattempt(0.0), mod_naccept(0.0), mod_nattempt(0.0), accept_rate(0.0), mod_accept_rate(0.0),
-    epair_cur(0.0), list(nullptr), random(nullptr), sector_flag(0), nsectors(1), nlocal_max(0),
-    rsec{0.0, 0.0, 0.0}, stack_head(nullptr), stack_foot(nullptr), forward_stacks(nullptr),
-    backward_stacks(nullptr)
+    epair_cur(0.0), list(nullptr), random(nullptr), image_flag(0), sector_flag(0), nsectors(1),
+    nlocal_max(0), rsec{0.0, 0.0, 0.0}, stack_head(nullptr), stack_foot(nullptr),
+    forward_stacks(nullptr), backward_stacks(nullptr)
 {
   if (narg < 5) utils::missing_cmd_args(FLERR, "fix mc/spin", error);
   if (!atom->sp_flag) error->all(FLERR, "Fix mc/spin requires atom style spin");
-  if (atom->map_style == Atom::MAP_NONE)
-    error->all(FLERR, "Fix mc/spin requires an atom map, see atom_modify");
+  if (!atom->tag_enable) error->all(FLERR, "Fix mc/spin requires atom IDs");
 
   temperature = utils::numeric(FLERR, arg[3], false, lmp);
   if (temperature <= 0.0) error->all(FLERR, 3, "Fix mc/spin temperature must be > 0");
@@ -155,8 +162,6 @@ FixMCSpin::FixMCSpin(LAMMPS *lmp, int narg, char **arg) :
 
   if ((mod_min < 0.0) || (mod_max <= mod_min))
     error->all(FLERR, "Fix mc/spin requires 0 <= modmin < modmax");
-  if (energy_global && (comm->nprocs > 1))
-    error->all(FLERR, "Fix mc/spin energy global requires a single processor");
 
   vector_flag = 1;
   size_vector = 4;
@@ -164,7 +169,10 @@ FixMCSpin::FixMCSpin(LAMMPS *lmp, int narg, char **arg) :
   extvector = 0;
   restart_global = 1;
 
-  random = new RanMars(lmp, seed + comm->me);
+  // with energy global, all processors decide every move together and draw
+  // the same random numbers; with energy local, each draws its own
+
+  random = new RanMars(lmp, energy_global ? seed : seed + comm->me);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -240,31 +248,57 @@ void FixMCSpin::init()
   for (const auto &ifix : modify->get_fix_list())
     if (auto *mfix = dynamic_cast<SpinFieldFix *>(ifix)) modulus_fixes.push_back(mfix);
 
-  // spin pair styles and their local energy functions
+  // spin pair styles, their local energy functions, and their cutoffs for
+  // each pair of atom types; a sub-style of pair_style hybrid applies only
+  // to the pairs of types assigned to it, the others get a negative cutoff.
+  // The coefficients of a sub-style stay set when a later pair_coeff command
+  // assigns its pair of types to another sub-style or to none, so the
+  // assignment is taken from pair_style hybrid itself.
 
   spin_pairs.clear();
   pair_kind.clear();
   pair_cutsq.clear();
+  const int ntypes = atom->ntypes;
+  auto *hybrid = dynamic_cast<PairHybrid *>(force->pair);
   double cutmax = 0.0;
   for (int k = 1; force->pair; k++) {
     auto *ipair = dynamic_cast<PairSpin *>(force->pair_match("^spin", 0, k));
     if (!ipair) break;
     if (std::find(spin_pairs.begin(), spin_pairs.end(), ipair) != spin_pairs.end()) break;
     int kind = -1;
-    if (dynamic_cast<PairSpinExchangeBiquadratic *>(ipair))
+    const char *cutname = "cut_spin_exchange";
+    std::string substyle = "spin/exchange";
+    if (dynamic_cast<PairSpinExchangeBiquadratic *>(ipair)) {
       kind = BIQUADRATIC;
-    else if (dynamic_cast<PairSpinExchange *>(ipair))
+      substyle = "spin/exchange/biquadratic";
+    } else if (dynamic_cast<PairSpinExchange *>(ipair)) {
       kind = EXCHANGE;
-    else if (dynamic_cast<PairSpinNeel *>(ipair))
+    } else if (dynamic_cast<PairSpinNeel *>(ipair)) {
       kind = NEEL;
+      cutname = "cut_spin_neel";
+      substyle = "spin/neel";
+    }
+
+    std::vector<double> cutsq((size_t) (ntypes + 1) * (ntypes + 1), -1.0);
     int dim = 0;
-    auto *cut = (double *) ipair->extract("cut", dim);
+    auto **cut = (kind < 0) ? nullptr : (double **) ipair->extract(cutname, dim);
+    if (cut && (dim == 2)) {
+      for (int itype = 1; itype <= ntypes; itype++) {
+        for (int jtype = 1; jtype <= ntypes; jtype++) {
+          if (!ipair->setflag[MIN(itype, jtype)][MAX(itype, jtype)]) continue;
+          if (hybrid && !hybrid->check_ijtype(itype, jtype, substyle.data())) continue;
+          cutsq[itype * (ntypes + 1) + jtype] = cut[itype][jtype] * cut[itype][jtype];
+          cutmax = MAX(cutmax, cut[itype][jtype]);
+        }
+      }
+    }
     spin_pairs.push_back(ipair);
     pair_kind.push_back(kind);
-    pair_cutsq.push_back(cut ? (*cut) * (*cut) : 0.0);
-    if (cut) cutmax = MAX(cutmax, *cut);
+    pair_cutsq.push_back(cutsq);
   }
 
+  image_flag = sector_flag = 0;
+  nsectors = 1;
   if (!energy_global) {
     for (std::size_t k = 0; k < spin_pairs.size(); k++)
       if (pair_kind[k] < 0)
@@ -277,27 +311,27 @@ void FixMCSpin::init()
                      "pair style {} is not sampled",
                      force->pair_style);
 
-    // the energy functions are applied with the global cutoff of each pair
-    // style, which equals the cutoff of every pair of types only for one type
-
-    if (!spin_pairs.empty() && (atom->ntypes > 1))
-      error->all(FLERR, Error::NOLASTLINE,
-                 "Fix mc/spin energy local supports a single atom type; use energy global");
-
     if (!spin_pairs.empty()) neighbor->add_request(this, NeighConst::REQ_FULL);
 
-    sector_flag = (comm->nprocs > 1) ? 1 : 0;
-    nsectors = 1;
-    if (sector_flag) {
-      if (cutmax <= 0.0)
-        error->all(FLERR, Error::NOLASTLINE, "Fix mc/spin found no spin cutoff for sectoring");
+    // in serial, the periodic images of a moved spin are updated with it; in
+    // parallel, interacting spins are swept sector by sector, and spins
+    // without interactions all at once
+
+    if (comm->nprocs == 1) {
+      image_flag = 1;
+    } else if (!spin_pairs.empty()) {
+      sector_flag = 1;
       rsec[0] = cutmax + neighbor->skin;
       sectoring();
     }
     memory->grow(stack_head, nsectors, "mc/spin:stack_head");
     memory->grow(stack_foot, nsectors, "mc/spin:stack_foot");
-  } else if (!force->pair) {
-    error->all(FLERR, Error::NOLASTLINE, "Fix mc/spin energy global requires a pair style");
+  } else {
+    if (!force->pair)
+      error->all(FLERR, Error::NOLASTLINE, "Fix mc/spin energy global requires a pair style");
+    if (atom->natoms > MAXSMALLINT)
+      error->all(FLERR, Error::NOLASTLINE, "Fix mc/spin energy global supports at most {} atoms",
+                 MAXSMALLINT);
   }
 }
 
@@ -334,13 +368,9 @@ void FixMCSpin::verify_energy_local()
   int *mask = atom->mask;
   const int nlocal = atom->nlocal;
 
-  // every bond is counted from both of its ends
-
   double local[2] = {0.0, 0.0};
-  for (int i = 0; i < nlocal; i++) {
-    if (!(mask[i] & groupbit)) continue;
-    local[0] += 0.5 * (single_spin_energy(i, sp[i], sp[i][3]) - single_site_energy(i, sp[i]));
-  }
+  for (int i = 0; i < nlocal; i++)
+    if (mask[i] & groupbit) local[0] += bond_energy(i, sp[i], 0);
   for (auto &ipair : spin_pairs) {
     auto *pspin = dynamic_cast<PairSpin *>(ipair);
     if (pspin && pspin->emag)
@@ -367,7 +397,11 @@ void FixMCSpin::verify_energy_local()
 void FixMCSpin::verify_energy_global()
 {
   const bool have_ref = (update->eflag_global == update->ntimestep);
-  const double eref = force->pair->eng_vdwl + force->pair->eng_coul;
+  const double eng_vdwl = force->pair->eng_vdwl;
+  const double eng_coul = force->pair->eng_coul;
+  const double eref_local = eng_vdwl + eng_coul;
+  double eref = 0.0;
+  MPI_Allreduce(&eref_local, &eref, 1, MPI_DOUBLE, MPI_SUM, world);
 
   // the forces of the setup are still needed by the first timestep
 
@@ -375,8 +409,6 @@ void FixMCSpin::verify_energy_global()
   std::vector<double> fsave(&atom->f[0][0], &atom->f[0][0] + 3 * (size_t) nall);
   std::vector<double> fmsave(&atom->fm[0][0], &atom->fm[0][0] + 3 * (size_t) nall);
   std::vector<double> fmlsave(&atom->fm_long[0][0], &atom->fm_long[0][0] + 3 * (size_t) nall);
-  const double eng_vdwl = force->pair->eng_vdwl;
-  const double eng_coul = force->pair->eng_coul;
 
   const double e1 = model_energy();
   const double e2 = model_energy();
@@ -413,12 +445,14 @@ void FixMCSpin::setup_pre_neighbor()
 }
 
 /* ----------------------------------------------------------------------
-   order of the local atoms in each sector, as in fix nve/spin
+   periodic images of the local atoms (serial), or the order of the local
+   atoms in each sector (parallel), as in fix nve/spin
 ------------------------------------------------------------------------- */
 
 void FixMCSpin::pre_neighbor()
 {
-  if (energy_global || !sector_flag) return;
+  if (image_flag) link_images();
+  if (!sector_flag) return;
 
   double **x = atom->x;
   const int nlocal = atom->nlocal;
@@ -447,6 +481,31 @@ void FixMCSpin::pre_neighbor()
 }
 
 /* ----------------------------------------------------------------------
+   link every ghost atom to the local atom it is a periodic image of; in
+   serial, all ghost atoms are such images
+------------------------------------------------------------------------- */
+
+void FixMCSpin::link_images()
+{
+  tagint *tag = atom->tag;
+  const int nlocal = atom->nlocal;
+  const int nall = nlocal + atom->nghost;
+
+  std::unordered_map<tagint, int> owner;
+  owner.reserve(nlocal);
+  for (int i = 0; i < nlocal; i++) owner[tag[i]] = i;
+
+  image_head.assign(nlocal, -1);
+  image_next.assign(nall, -1);
+  for (int j = nlocal; j < nall; j++) {
+    const auto it = owner.find(tag[j]);
+    if (it == owner.end()) continue;
+    image_next[j] = image_head[it->second];
+    image_head[it->second] = j;
+  }
+}
+
+/* ----------------------------------------------------------------------
    Monte Carlo sweeps at the current atom positions, before the forces
 ------------------------------------------------------------------------- */
 
@@ -454,8 +513,21 @@ void FixMCSpin::pre_force(int /*vflag*/)
 {
   if (update->ntimestep % every) return;
 
+  // the image links are made at every neighbor list build; renew them if
+  // the atoms changed without one
+
+  if (image_flag &&
+      ((image_head.size() != (size_t) atom->nlocal) ||
+       (image_next.size() != (size_t) (atom->nlocal + atom->nghost))))
+    link_images();
+
   naccept = nattempt = mod_naccept = mod_nattempt = 0.0;
-  for (int k = 0; k < nsweep; k++) mc_sweep();
+  for (int k = 0; k < nsweep; k++) {
+    if (energy_global)
+      global_sweep();
+    else
+      local_sweep();
+  }
 
   // re-running the pair style left forces behind; the force computation
   // that follows expects them cleared
@@ -466,28 +538,87 @@ void FixMCSpin::pre_force(int /*vflag*/)
 
 /* ---------------------------------------------------------------------- */
 
-void FixMCSpin::mc_sweep()
+void FixMCSpin::local_sweep()
 {
+  double **sp = atom->sp;
   int *mask = atom->mask;
   const int nlocal = atom->nlocal;
 
-  if (energy_global) epair_cur = model_energy();
+  // sites without a magnetic moment are skipped, as with energy global
 
   if (sector_flag) {
     for (int j = 0; j < nsectors; j++) {
       comm->forward_comm();
       order.clear();
       for (int i = stack_foot[j]; i >= 0; i = forward_stacks[i])
-        if (mask[i] & groupbit) order.push_back(i);
+        if ((mask[i] & groupbit) && (sp[i][3] != 0.0)) order.push_back(i);
       shuffle_and_try((int) order.size());
     }
     comm->forward_comm();
   } else {
     order.clear();
     for (int i = 0; i < nlocal; i++)
-      if (mask[i] & groupbit) order.push_back(i);
+      if ((mask[i] & groupbit) && (sp[i][3] != 0.0)) order.push_back(i);
     shuffle_and_try((int) order.size());
+
+    // in parallel without spin pair styles, the spins do not interact and
+    // their ghost copies are updated once at the end
+
+    if (!image_flag) comm->forward_comm();
   }
+}
+
+/* ----------------------------------------------------------------------
+   one sweep with energy global: the spins with a magnetic moment are tried
+   one at a time, in a random order of their atom IDs that all processors
+   draw alike
+------------------------------------------------------------------------- */
+
+void FixMCSpin::global_sweep()
+{
+  double **sp = atom->sp;
+  int *mask = atom->mask;
+  tagint *tag = atom->tag;
+  const int nlocal = atom->nlocal;
+  const int nprocs = comm->nprocs;
+
+  std::vector<tagint> mytags;
+  std::unordered_map<tagint, int> owned;
+  for (int i = 0; i < nlocal; i++) {
+    if (!(mask[i] & groupbit)) continue;
+    if (sp[i][3] == 0.0) continue;    // a site without a magnetic moment
+    mytags.push_back(tag[i]);
+    owned[tag[i]] = i;
+  }
+
+  int nmine = (int) mytags.size();
+  std::vector<int> counts(nprocs), displs(nprocs);
+  MPI_Allgather(&nmine, 1, MPI_INT, counts.data(), 1, MPI_INT, world);
+  int ntrial = 0;
+  for (int p = 0; p < nprocs; p++) {
+    displs[p] = ntrial;
+    ntrial += counts[p];
+  }
+  trial_tags.resize(ntrial);
+  MPI_Allgatherv(mytags.data(), nmine, MPI_LMP_TAGINT, trial_tags.data(), counts.data(),
+                 displs.data(), MPI_LMP_TAGINT, world);
+  std::sort(trial_tags.begin(), trial_tags.end());
+
+  epair_cur = model_energy();
+
+  for (int k = ntrial - 1; k > 0; k--) {
+    int r = static_cast<int>(random->uniform() * (k + 1));
+    if (r > k) r = k;
+    std::swap(trial_tags[k], trial_tags[r]);
+  }
+  for (int k = 0; k < ntrial; k++) {
+    const auto it = owned.find(trial_tags[k]);
+    mc_global_spin((it == owned.end()) ? -1 : it->second);
+  }
+
+  // a rejected move restored the spin of its owner only
+
+  comm->forward_comm();
 }
 
 /* ----------------------------------------------------------------------
@@ -511,7 +642,6 @@ void FixMCSpin::mc_single_spin(int i)
   double **sp = atom->sp;
   const double sold[3] = {sp[i][0], sp[i][1], sp[i][2]};
   const double mold = sp[i][3];
-  if (mold == 0.0) return;    // a site without a magnetic moment
 
   double snew[3];
   propose_direction(sold, snew);
@@ -529,18 +659,8 @@ void FixMCSpin::mc_single_spin(int i)
       mod_move = 1;
   }
 
-  double eold, enew, epair_new = 0.0;
-  if (energy_global) {
-    set_spin(i, snew, mnew);
-    epair_new = model_energy();
-    const double so4[4] = {sold[0], sold[1], sold[2], mold};
-    const double sn4[4] = {snew[0], snew[1], snew[2], mnew};
-    eold = epair_cur + single_site_energy(i, so4);
-    enew = epair_new + single_site_energy(i, sn4);
-  } else {
-    eold = single_spin_energy(i, sold, mold);
-    enew = single_spin_energy(i, snew, mnew);
-  }
+  const double eold = single_spin_energy(i, sold, mold);
+  const double enew = single_spin_energy(i, snew, mnew);
 
   double logacc = -beta * (enew - eold);
   if (mod_move && jacobian_flag) logacc += 2.0 * log(mnew / mold);
@@ -548,35 +668,105 @@ void FixMCSpin::mc_single_spin(int i)
   nattempt += 1.0;
   if (mod_move) mod_nattempt += 1.0;
 
-  if ((logacc < 0.0) && (random->uniform() >= exp(logacc))) {
-    if (energy_global) set_spin(i, sold, mold);
-    return;
-  }
+  if ((logacc < 0.0) && (random->uniform() >= exp(logacc))) return;
 
   naccept += 1.0;
   if (mod_move) mod_naccept += 1.0;
-  if (energy_global)
-    epair_cur = epair_new;
-  else
-    set_spin(i, snew, mnew);
+  set_spin(i, snew, mnew);
 }
 
 /* ----------------------------------------------------------------------
-   write spin i and, in serial, its periodic images on this processor;
-   in parallel the forward communication between sectors updates them
+   one move with energy global, for the local atom i on the processor that
+   owns the spin and i = -1 on all others.  Every processor draws the same
+   random numbers and takes the same decision; the owner moves the spin and
+   contributes its single-site energies to the sums over all processors.
+------------------------------------------------------------------------- */
+
+void FixMCSpin::mc_global_spin(int i)
+{
+  double **sp = atom->sp;
+  const int owner = (i >= 0);
+
+  double sold[3] = {0.0, 0.0, 1.0};
+  double mold = 0.0;
+  if (owner) {
+    sold[0] = sp[i][0];
+    sold[1] = sp[i][1];
+    sold[2] = sp[i][2];
+    mold = sp[i][3];
+  }
+
+  double snew[3];
+  propose_direction(sold, snew);
+
+  double mnew = mold;
+  int mod_move = 0;
+  if (modulus_flag) {
+    const double gauss = random->gaussian();
+    if (owner) {
+      mnew = mold + mod_sigma * gauss;
+      if ((mnew < mod_min) || (mnew > mod_max))
+        mnew = mold;
+      else
+        mod_move = 1;
+    }
+  }
+
+  // [0] pair energy, [1] and [2] single-site energies before and after the
+  // move, [3] logarithm of the magnitude weight, [4] magnitude move flag
+
+  double local[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
+  if (owner) {
+    const double so4[4] = {sold[0], sold[1], sold[2], mold};
+    const double sn4[4] = {snew[0], snew[1], snew[2], mnew};
+    local[1] = single_site_energy(i, so4);
+    local[2] = single_site_energy(i, sn4);
+    if (mod_move) local[3] = 2.0 * log(mnew / mold);
+    local[4] = mod_move;
+    set_spin(i, snew, mnew);
+  }
+  local[0] = pair_energy_local();
+  double all[5];
+  MPI_Allreduce(local, all, 5, MPI_DOUBLE, MPI_SUM, world);
+
+  const double epair_new = all[0];
+  const double eold = epair_cur + all[1];
+  const double enew = epair_new + all[2];
+  double logacc = -beta * (enew - eold);
+  if ((all[4] > 0.0) && jacobian_flag) logacc += all[3];
+
+  if (owner) {
+    nattempt += 1.0;
+    if (mod_move) mod_nattempt += 1.0;
+  }
+
+  if ((logacc < 0.0) && (random->uniform() >= exp(logacc))) {
+    if (owner) set_spin(i, sold, mold);
+    return;
+  }
+
+  if (owner) {
+    naccept += 1.0;
+    if (mod_move) mod_naccept += 1.0;
+  }
+  epair_cur = epair_new;
+}
+
+/* ----------------------------------------------------------------------
+   write spin i and, in serial with energy local, its periodic images on
+   this processor; otherwise forward communication updates the ghost atoms
 ------------------------------------------------------------------------- */
 
 void FixMCSpin::set_spin(int i, const double *s, double smag)
 {
   double **sp = atom->sp;
-  int *sametag = atom->sametag;
 
   sp[i][0] = s[0];
   sp[i][1] = s[1];
   sp[i][2] = s[2];
   sp[i][3] = smag;
-  if (sector_flag) return;
-  for (int j = sametag[i]; j >= 0; j = sametag[j]) {
+  if (!image_flag) return;
+  for (int j = image_head[i]; j >= 0; j = image_next[j]) {
     sp[j][0] = s[0];
     sp[j][1] = s[1];
     sp[j][2] = s[2];
@@ -623,54 +813,79 @@ void FixMCSpin::propose_direction(const double *s, double *snew)
 }
 
 /* ----------------------------------------------------------------------
-   energy of the bonds of spin i with direction s and magnitude smag, plus
-   its single-site energy
+   energy of the bonds of spin i when it has the value s (direction and
+   magnitude).  The energy functions return half a bond energy, which the
+   pair styles subtract once from each end of a bond.  With trial = 1, the
+   result is the energy that changes when spin i changes: the bond to
+   another spin counts twice, since its other half changes as well, and the
+   bond to a periodic image of spin i counts once, with the image taking
+   the value s.  With trial = 0, it is the share of spin i in the total
+   energy, where every bond counts once.
+------------------------------------------------------------------------- */
+
+double FixMCSpin::bond_energy(int i, const double *s, int trial)
+{
+  if (!list) return 0.0;
+
+  double **x = atom->x;
+  double **sp = atom->sp;
+  int *type = atom->type;
+  tagint *tag = atom->tag;
+  const int ntp1 = atom->ntypes + 1;
+  const int itype = type[i];
+
+  double spi[4] = {s[0], s[1], s[2], s[3]};
+  double energy = 0.0;
+
+  int *jlist = list->firstneigh[i];
+  const int jnum = list->numneigh[i];
+  for (int jj = 0; jj < jnum; jj++) {
+    const int j = jlist[jj] & NEIGHMASK;
+    const double delx = x[j][0] - x[i][0];
+    const double dely = x[j][1] - x[i][1];
+    const double delz = x[j][2] - x[i][2];
+    const double rsq = delx * delx + dely * dely + delz * delz;
+    if (rsq == 0.0) continue;
+    const double rinv = 1.0 / sqrt(rsq);
+    double eij[3] = {-delx * rinv, -dely * rinv, -delz * rinv};
+
+    const int self = (tag[j] == tag[i]);
+    double spj[3] = {sp[j][0], sp[j][1], sp[j][2]};
+    if (self) {
+      spj[0] = spi[0];
+      spj[1] = spi[1];
+      spj[2] = spi[2];
+    }
+    const double weight = (trial && !self) ? 2.0 : 1.0;
+    const int ij = itype * ntp1 + type[j];
+
+    for (std::size_t k = 0; k < spin_pairs.size(); k++) {
+      if (rsq > pair_cutsq[k][ij]) continue;
+      if (pair_kind[k] == EXCHANGE)
+        energy -= weight *
+            static_cast<PairSpinExchange *>(spin_pairs[k])->compute_energy(i, j, rsq, spi, spj);
+      else if (pair_kind[k] == BIQUADRATIC)
+        energy -= weight *
+            static_cast<PairSpinExchangeBiquadratic *>(spin_pairs[k])
+                ->compute_energy(i, j, rsq, spi, spj);
+      else if (pair_kind[k] == NEEL)
+        energy -= weight *
+            static_cast<PairSpinNeel *>(spin_pairs[k])
+                ->compute_neel_energy(i, j, rsq, eij, spi, spj);
+    }
+  }
+
+  return energy;
+}
+
+/* ----------------------------------------------------------------------
+   energy that changes with spin i, for direction s and magnitude smag
 ------------------------------------------------------------------------- */
 
 double FixMCSpin::single_spin_energy(int i, const double *s, double smag)
 {
-  double **x = atom->x;
-  double **sp = atom->sp;
-
-  double spit[4] = {s[0], s[1], s[2], smag};
-  double energy = 0.0;
-
-  if (list) {
-    int *jlist = list->firstneigh[i];
-    const int jnum = list->numneigh[i];
-    for (int jj = 0; jj < jnum; jj++) {
-      const int j = jlist[jj] & NEIGHMASK;
-      const double delx = x[j][0] - x[i][0];
-      const double dely = x[j][1] - x[i][1];
-      const double delz = x[j][2] - x[i][2];
-      const double rsq = delx * delx + dely * dely + delz * delz;
-      if (rsq == 0.0) continue;
-      const double rinv = 1.0 / sqrt(rsq);
-      double eij[3] = {-delx * rinv, -dely * rinv, -delz * rinv};
-      double spj[3] = {sp[j][0], sp[j][1], sp[j][2]};
-
-      // the energy functions return half a bond energy, which the pair
-      // styles subtract once from each end of the bond: the bond of spin i
-      // counts twice here
-
-      for (std::size_t k = 0; k < spin_pairs.size(); k++) {
-        if (rsq > pair_cutsq[k]) continue;
-        if (pair_kind[k] == EXCHANGE)
-          energy -= 2.0 *
-              dynamic_cast<PairSpinExchange *>(spin_pairs[k])->compute_energy(i, j, rsq, spit, spj);
-        else if (pair_kind[k] == BIQUADRATIC)
-          energy -= 2.0 *
-              dynamic_cast<PairSpinExchangeBiquadratic *>(spin_pairs[k])
-                  ->compute_energy(i, j, rsq, spit, spj);
-        else if (pair_kind[k] == NEEL)
-          energy -= 2.0 *
-              dynamic_cast<PairSpinNeel *>(spin_pairs[k])
-                  ->compute_neel_energy(i, j, rsq, eij, spit, spj);
-      }
-    }
-  }
-
-  return energy + single_site_energy(i, spit);
+  const double spit[4] = {s[0], s[1], s[2], smag};
+  return bond_energy(i, spit, 1) + single_site_energy(i, spit);
 }
 
 /* ----------------------------------------------------------------------
@@ -707,14 +922,13 @@ double FixMCSpin::magnetic_energy()
   int *mask = atom->mask;
   const int nlocal = atom->nlocal;
 
-  double epair = 0.0, esite = 0.0;
+  double local = 0.0;
   for (int i = 0; i < nlocal; i++) {
     if (!(mask[i] & groupbit)) continue;
-    esite += single_site_energy(i, sp[i]);
-    if (!energy_global) epair += single_spin_energy(i, sp[i], sp[i][3]);
+    local += single_site_energy(i, sp[i]);
+    if (!energy_global) local += bond_energy(i, sp[i], 0);
   }
 
-  double local = energy_global ? esite : 0.5 * (epair - esite) + esite;
   double all = 0.0;
   MPI_Allreduce(&local, &all, 1, MPI_DOUBLE, MPI_SUM, world);
   if (energy_global) all += epair_cur;
@@ -722,15 +936,28 @@ double FixMCSpin::magnetic_energy()
 }
 
 /* ----------------------------------------------------------------------
-   pair energy of the current configuration from a full re-run of the pair
-   style (serial)
+   pair energy of this processor from a full re-run of the pair style with
+   the current spins; all processors must call it together
+------------------------------------------------------------------------- */
+
+double FixMCSpin::pair_energy_local()
+{
+  comm->forward_comm();
+  clear_forces();
+  force->pair->compute(1, 0);
+  return force->pair->eng_vdwl + force->pair->eng_coul;
+}
+
+/* ----------------------------------------------------------------------
+   pair energy of the whole system with the current spins
 ------------------------------------------------------------------------- */
 
 double FixMCSpin::model_energy()
 {
-  clear_forces();
-  force->pair->compute(1, 0);
-  return force->pair->eng_vdwl + force->pair->eng_coul;
+  const double local = pair_energy_local();
+  double all = 0.0;
+  MPI_Allreduce(&local, &all, 1, MPI_DOUBLE, MPI_SUM, world);
+  return all;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -832,13 +1059,14 @@ int FixMCSpin::coords2sector(double *x)
 
 /* ----------------------------------------------------------------------
    write the cone angle and the random number states of all processors
-   layout: [0] = number of processors, [1] = seed, [2] = cone, then states
+   layout: [0] = number of processors, [1] = seed, [2] = cone,
+   [3] = energy global flag, then the states
 ------------------------------------------------------------------------- */
 
 void FixMCSpin::write_restart(FILE *fp)
 {
   const int nprocs = comm->nprocs;
-  const int nsize = 3 + RanMars::STATE_SIZE * nprocs;
+  const int nsize = 4 + RanMars::STATE_SIZE * nprocs;
 
   std::vector<double> list_out;
   if (comm->me == 0) {
@@ -846,11 +1074,12 @@ void FixMCSpin::write_restart(FILE *fp)
     list_out[0] = nprocs;
     list_out[1] = seed;
     list_out[2] = cone;
+    list_out[3] = energy_global;
   }
 
   double state[RanMars::STATE_SIZE];
   random->get_state(state);
-  MPI_Gather(state, RanMars::STATE_SIZE, MPI_DOUBLE, (comm->me == 0) ? &list_out[3] : nullptr,
+  MPI_Gather(state, RanMars::STATE_SIZE, MPI_DOUBLE, (comm->me == 0) ? &list_out[4] : nullptr,
              RanMars::STATE_SIZE, MPI_DOUBLE, 0, world);
 
   if (comm->me == 0) {
@@ -860,20 +1089,27 @@ void FixMCSpin::write_restart(FILE *fp)
   }
 }
 
-/* ---------------------------------------------------------------------- */
+/* ----------------------------------------------------------------------
+   with energy global, all processors continue with the state of processor
+   0, which is the same for any number of processors
+------------------------------------------------------------------------- */
 
 void FixMCSpin::restart(char *buf)
 {
   auto *list_in = (double *) buf;
   cone = list_in[2];
 
-  if (((int) list_in[0] == comm->nprocs) && ((int) list_in[1] == seed)) {
-    const int stride = RanMars::state_size(list_in + 3);
-    random->set_state(list_in + 3 + (size_t) comm->me * stride);
+  const int same = ((int) list_in[1] == seed) && ((int) list_in[3] == energy_global);
+  if (same && energy_global) {
+    random->set_state(list_in + 4);
+  } else if (same && ((int) list_in[0] == comm->nprocs)) {
+    const int stride = RanMars::state_size(list_in + 4);
+    random->set_state(list_in + 4 + (size_t) comm->me * stride);
   } else if (comm->me == 0) {
     error->warning(FLERR,
                    "Fix mc/spin cannot restore the random number state from the restart file: "
-                   "the number of processors or the seed differs");
+                   "the seed, the energy keyword, or with energy local the number of "
+                   "processors differs");
   }
 }
 

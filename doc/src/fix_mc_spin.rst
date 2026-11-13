@@ -97,13 +97,21 @@ bonds of the moved spin, for the spin pair styles :doc:`spin/exchange
 <pair_spin_neel>`, plus its single-site energies from :doc:`fix
 precession/spin <fix_precession_spin>` (Zeeman and anisotropy terms),
 :doc:`fix landau/spin <fix_landau_spin>`, and :doc:`fix spring/tspin
-<fix_spring_tspin>`.  In parallel, every subdomain is divided into
+<fix_spring_tspin>`.  The bonds use the coefficients and cutoff of each
+pair of atom types; with :doc:`pair_style hybrid <pair_hybrid>` or
+*hybrid/overlay*, a spin pair style contributes only for the pairs of
+atom types assigned to it.  In parallel, every subdomain is divided into
 sectors, as for :doc:`fix nve/spin <fix_nve_spin>`, so that spins that
 are moved at the same time on different processors do not interact.
 With *energy global*, every move is scored by re-running the whole pair
 style, which is required for magnetic potentials without a local energy,
 such as *pair_style deepspin* of DeePMD-kit.  Each sweep then costs one
-evaluation of the pair style per spin.
+evaluation of the pair style per spin.  In parallel, the moves are still
+attempted one at a time for the whole system, and all processors share
+each evaluation of the pair style.  All processors use the same random
+numbers, so that a run follows the same sequence of moves on any number
+of processors; small round-off differences of the energies can change
+the outcome of a move only very rarely.
 
 At the start of each run, the energy used in the Metropolis test is
 compared with the energy computed by the pair styles and fixes, and the
@@ -116,8 +124,9 @@ Restart, fix_modify, output, run start/stop, minimize info
 
 This fix writes the current cone angle and the state of the random
 number generators to :doc:`binary restart files <restart>`.  A restarted
-simulation with the same number of processors and seed continues with
-the same random numbers.
+simulation with the same seed and *energy* setting continues with the
+same random numbers; with *energy local*, it must also run on the same
+number of processors.
 
 None of the :doc:`fix_modify <fix_modify>` options are relevant to this
 fix.
@@ -129,7 +138,13 @@ various :doc:`output commands <Howto_output>`.  The vector values are
   #. acceptance rate of the last set of sweeps
   #. current cone half-angle (degrees)
   #. acceptance rate of the moves that changed the spin magnitude
-  #. magnetic energy of the group (energy units)
+  #. energy sampled by the Metropolis test (energy units)
+
+With *energy local*, the fourth value is the energy of the spin pair
+styles and the single-site terms of the spins in the group.  With
+*energy global*, it is the energy of the whole pair style, including
+any non-magnetic terms such as an embedded-atom potential, plus the
+single-site terms of the group.
 
 This fix is not invoked during :doc:`energy minimization <minimize>`.
 
@@ -140,21 +155,20 @@ This fix is part of the SPIN package.  It is only enabled if LAMMPS was
 built with that package.  See the :doc:`Build package <Build_package>`
 page for more info.
 
-This fix requires :doc:`atom_style spin <atom_style>` and an atom map,
-see :doc:`atom_modify <atom_modify>`.  It cannot be used
-together with a spin integrator, a spin thermostat, :doc:`fix
-setforce/spin <fix_setforce_spin>`, or the spin transfer torque of fix
-precession/spin.  The energies of other fixes that act on the spins are
-not included.
+This fix requires :doc:`atom_style spin <atom_style>` and atom IDs.  It
+cannot be used together with a spin integrator, a spin thermostat,
+:doc:`fix setforce/spin <fix_setforce_spin>`, or the spin transfer
+torque of fix precession/spin.  The energies of other fixes that act on
+the spins are not included.
 
-*energy local* supports a single atom type and the pair styles listed
-above.  In parallel, each subdomain must be at least twice as wide as the
-largest spin cutoff plus the neighbor skin in every direction.  *energy
-global* runs on a single processor.  With *energy global* and *every*
-larger than 1, the fourth vector value is the energy of the last sweep.
+*energy local* supports the pair styles listed above.  With spin pair
+styles in parallel, each subdomain must be at least twice as wide as the
+largest spin cutoff plus the neighbor skin in every direction.  With
+*energy global* and *every* larger than 1, the fourth vector value is
+the energy of the last sweep.
 
-Each processor draws its own random numbers, so the trajectories depend
-on the number of processors.
+With *energy local*, each processor draws its own random numbers, so the
+trajectories depend on the number of processors.
 
 Related commands
 """"""""""""""""

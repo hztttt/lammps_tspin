@@ -154,13 +154,17 @@ double PairSpinNeel::init_one(int i, int j)
 }
 
 /* ----------------------------------------------------------------------
-   extract the larger cutoff
+   extract the global cutoff, or the cutoffs of all pairs of types
 ------------------------------------------------------------------------- */
 
 void *PairSpinNeel::extract(const char *str, int &dim)
 {
   dim = 0;
   if (strcmp(str,"cut") == 0) return (void *) &cut_spin_neel_global;
+  if (strcmp(str,"cut_spin_neel") == 0) {
+    dim = 2;
+    return (void *) cut_spin_neel;
+  }
   return nullptr;
 }
 
