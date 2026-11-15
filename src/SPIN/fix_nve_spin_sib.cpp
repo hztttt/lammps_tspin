@@ -67,5 +67,5 @@ int FixNVESpinSIB::parse_extra(int iarg, int narg, char **arg)
 
 void FixNVESpinSIB::advance_spins()
 {
-  transverse_sib();
+  transverse(1);
 }

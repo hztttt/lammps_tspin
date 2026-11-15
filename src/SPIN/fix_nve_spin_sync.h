@@ -77,6 +77,7 @@ class FixNVESpinSync : public Fix {
   int random_seed;    // seed the random number generator was created with
   class RanMars *random;
   std::vector<double> restart_state;    // random number states read from a restart file
+  int noise_split;    // 1: random rotation between two half steps, 0: thermal field in the step
 
   std::vector<class PairSpin *> spin_pairs;
   std::vector<class FixPrecessionSpin *> precession_fixes;
@@ -93,8 +94,10 @@ class FixNVESpinSync : public Fix {
   // advance the spins of the group by one timestep
 
   virtual void advance_spins() = 0;
-  void transverse_sib();
-  void transverse_pc();
+  void transverse(int);
+  void transverse_sib(double, int);
+  void transverse_pc(double, int);
+  void thermal_rotation(double);
 
   void kick();
   void drift(double);

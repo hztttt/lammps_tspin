@@ -48,8 +48,8 @@ nve/spin/llb <fix_nve_spin_llb>`: the temperature, the transverse damping
 :math:`\alpha_\perp` of the spin directions, the longitudinal damping
 :math:`\alpha_\parallel` of the spin magnitudes, and the random number
 seed.  This fix only holds these parameters; fix nve/spin/llb applies the
-damping and draws the thermal noise, which has to stay fixed during the
-iterations of a timestep.  See that page for the equations of motion.
+damping and draws the thermal noise within the stages of its timestep.
+See that page for the equations of motion.
 
 The two damping constants are parameters of the model and do not depend
 on the temperature.  :math:`\alpha_\perp` has the same meaning as the

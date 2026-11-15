@@ -63,9 +63,10 @@ class FixNVESpinLLB : public FixNVESpinSync {
   double longitudinal_drive(int);
   double longitudinal_rate(int);
   void refresh_longitudinal();
-  void start_longitudinal(double);
-  void longitudinal_sib(double);
-  void longitudinal_pc(double);
+  void start_longitudinal(double, int);
+  void longitudinal_sib(double, int);
+  void longitudinal_pc(double, int);
+  void longitudinal_noise(double);
 };
 
 }    // namespace LAMMPS_NS

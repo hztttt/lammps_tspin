@@ -45,11 +45,20 @@
    alpha_par = 0 the magnitudes are fixed and the fix integrates the same
    equation as fix nve/spin/sib or nve/spin/pc.
 
-   Each timestep is split symmetrically: half a longitudinal step, a full
-   transverse step, and half a longitudinal step.  With scheme sib both
-   channels use the implicit midpoint rule, solved by iteration with the
-   thermal noise held fixed; with scheme pc both use the predictor-corrector
-   (Heun) method.
+   Each timestep is split symmetrically.  Without thermal noise, or with
+   keyword thermal field, it consists of half a longitudinal step, a full
+   transverse step, and half a longitudinal step, with the thermal noise of
+   each step held fixed within it.  With thermal noise and keyword thermal
+   split (the default), the deterministic parts and the noise are split:
+   half a longitudinal and half a transverse step without noise, the
+   random rotation of the directions (see fix_nve_spin_sync.cpp) and the
+   exact additive noise of u over a full timestep, then half a transverse
+   and half a longitudinal step without noise.  The noise of both channels
+   then enters exactly, without the reduction by the implicit steps, which
+   removes the errors of first order in the timestep of the sampled
+   distributions.  With scheme sib both channels use the implicit midpoint
+   rule, solved by iteration; with scheme pc both use the
+   predictor-corrector (Heun) method.
 
    The longitudinal drive is collected from the contributions whose energy
    depends on the spin magnitudes: spin pair styles that provide the
@@ -241,14 +250,37 @@ void FixNVESpinLLB::init_bath()
 
 void FixNVESpinLLB::advance_spins()
 {
-  if (scheme == SIB) {
-    longitudinal_sib(0.5 * dtv);
-    transverse_sib();
-    longitudinal_sib(0.5 * dtv);
+  const int use_sib = (scheme == SIB) ? 1 : 0;
+  auto longitudinal = [this, use_sib](double h, int with_noise) {
+    if (use_sib)
+      longitudinal_sib(h, with_noise);
+    else
+      longitudinal_pc(h, with_noise);
+  };
+
+  const int tnoise = (sigma > 0.0) ? 1 : 0;
+  const int lnoise_on = ((kt_long > 0.0) && (alpha_par > 0.0)) ? 1 : 0;
+
+  if (noise_split && (tnoise || lnoise_on)) {
+    longitudinal(0.5 * dtv, 0);
+    if (use_sib)
+      transverse_sib(0.5 * dtv, 0);
+    else
+      transverse_pc(0.5 * dtv, 0);
+    if (tnoise) thermal_rotation(dtv);
+    if (lnoise_on) longitudinal_noise(dtv);
+    if (use_sib)
+      transverse_sib(0.5 * dtv, 0);
+    else
+      transverse_pc(0.5 * dtv, 0);
+    longitudinal(0.5 * dtv, 0);
   } else {
-    longitudinal_pc(0.5 * dtv);
-    transverse_pc();
-    longitudinal_pc(0.5 * dtv);
+    longitudinal(0.5 * dtv, 1);
+    if (use_sib)
+      transverse_sib(dtv, 1);
+    else
+      transverse_pc(dtv, 1);
+    longitudinal(0.5 * dtv, 1);
   }
 }
 
@@ -318,10 +350,11 @@ void FixNVESpinLLB::refresh_longitudinal()
 
 /* ----------------------------------------------------------------------
    start a longitudinal step of length h: the active spins (in the group,
-   with a finite magnitude), their u = ln |S|, and the noise of the step
+   with a finite magnitude), their u = ln |S|, and, with with_noise, the
+   noise of the step
 ------------------------------------------------------------------------- */
 
-void FixNVESpinLLB::start_longitudinal(double h)
+void FixNVESpinLLB::start_longitudinal(double h, int with_noise)
 {
   double **sp = atom->sp;
   int *mask = atom->mask;
@@ -340,21 +373,36 @@ void FixNVESpinLLB::start_longitudinal(double h)
     if (!(mask[i] & groupbit) || (sp[i][3] <= 0.0)) continue;
     active[i] = 1;
     u0[i] = u1[i] = log(sp[i][3]);
-    if (random && (sigma_long > 0.0)) lnoise[i] = sigma_long * random->gaussian();
+    if (with_noise && random && (sigma_long > 0.0)) lnoise[i] = sigma_long * random->gaussian();
   }
+}
+
+/* ----------------------------------------------------------------------
+   thermal noise of u = ln |S| alone over time h, which is additive and
+   integrated exactly: u += sqrt(2 alpha_par kT h / hbar) xi
+------------------------------------------------------------------------- */
+
+void FixNVESpinLLB::longitudinal_noise(double h)
+{
+  double **sp = atom->sp;
+  start_longitudinal(h, 1);
+  const int n = (int) active.size();
+  for (int i = 0; i < n; i++)
+    if (active[i]) sp[i][3] = exp(u0[i] + lnoise[i]);
 }
 
 /* ----------------------------------------------------------------------
    implicit midpoint step of u = ln |S| over time h, solved by iteration:
      u(t+h) = u(t) + h du/dt( exp[(u(t) + u(t+h))/2] ) + noise
+   with the noise of a step h only with with_noise
 ------------------------------------------------------------------------- */
 
-void FixNVESpinLLB::longitudinal_sib(double h)
+void FixNVESpinLLB::longitudinal_sib(double h, int with_noise)
 {
   if (alpha_par <= 0.0) return;
 
   double **sp = atom->sp;
-  start_longitudinal(h);
+  start_longitudinal(h, with_noise);
   const int n = (int) active.size();
 
   double residual = 0.0;
@@ -385,15 +433,16 @@ void FixNVESpinLLB::longitudinal_sib(double h)
 }
 
 /* ----------------------------------------------------------------------
-   predictor-corrector (Heun) step of u = ln |S| over time h
+   predictor-corrector (Heun) step of u = ln |S| over time h, with the
+   noise of a step h only with with_noise
 ------------------------------------------------------------------------- */
 
-void FixNVESpinLLB::longitudinal_pc(double h)
+void FixNVESpinLLB::longitudinal_pc(double h, int with_noise)
 {
   if (alpha_par <= 0.0) return;
 
   double **sp = atom->sp;
-  start_longitudinal(h);
+  start_longitudinal(h, with_noise);
   const int n = (int) active.size();
 
   // predictor, with every rate computed before any magnitude is changed

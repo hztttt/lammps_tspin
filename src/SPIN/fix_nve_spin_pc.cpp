@@ -45,5 +45,5 @@ FixNVESpinPC::FixNVESpinPC(LAMMPS *lmp, int narg, char **arg) : FixNVESpinSync(l
 
 void FixNVESpinPC::advance_spins()
 {
-  transverse_pc();
+  transverse(0);
 }

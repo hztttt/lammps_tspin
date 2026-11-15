@@ -30,10 +30,22 @@
        ds/dt = omega x s,   omega = [H - alpha (H x s)] / (1 + alpha^2),
 
    with H the precession field held in fm (rad/time) plus, at finite
-   temperature, a thermal field of variance 2 alpha kB T / (hbar dt) per
-   component.  The thermal field is drawn once per step and held fixed while
-   the field is evaluated at several intermediate configurations, as the
-   Stratonovich interpretation of the stochastic equation requires.
+   temperature, a thermal field.  The thermal part of this equation alone is
+   rotational diffusion of every spin direction, independent of the others
+   and of the energy, with the diffusion constant
+   D = alpha kB T / ((1 + alpha^2) hbar).  With a spin bath, a timestep is
+   therefore split (keyword thermal split, the default) into half a timestep
+   of the damped precession without thermal field, a random rotation of each
+   spin that reproduces rotational diffusion over a full timestep, and
+   another half timestep of the damped precession.  The random rotation is
+   a rotation about an axis perpendicular to the spin by a Gaussian random
+   angle, whose variance 2 D dt (1 - D dt / 3) per direction matches
+   rotational diffusion to second order in D dt.  This removes the error of
+   first order in the timestep of the sampled temperature of the
+   alternative (thermal field): a thermal field of variance
+   2 alpha kB T / (hbar dt) per component added to the precession field and
+   held fixed within the timestep, the Stratonovich discretization, whose
+   implicit rotations under-rotate the random kicks.
 
    The atom positions are integrated with velocity Verlet, the spin update
    being placed in the middle of the position update: a half-step velocity
@@ -92,7 +104,7 @@ FixNVESpinSync::FixNVESpinSync(LAMMPS *lmp, int narg, char **arg) :
     field_tol_loose(0), check_parallel(0), field_checked(0), field_check{0.0, 0.0, 0.0}, dtv(0.0),
     dtf(0.0), hbar(0.0), maxiter(10), tolerance(1.0e-12), nsteps(0), nevals(0), nsolve(0), nfail(0),
     residual_max(0.0), bathbit(0), alpha(0.0), temp(0.0), sigma(0.0), seed_offset(SEED_OFFSET),
-    random_seed(0), random(nullptr), setforce_fix(nullptr)
+    random_seed(0), random(nullptr), noise_split(1), setforce_fix(nullptr)
 {
   if (!atom->sp_flag) error->all(FLERR, "Fix {} requires atom style spin", style);
 
@@ -143,6 +155,17 @@ void FixNVESpinSync::parse_args(int iarg, int narg, char **arg)
         field_mode = FIELD_GLOBAL;
       else
         error->all(FLERR, iarg + 1, "Unknown fix {} field option: {}", style, value);
+      iarg += 2;
+    } else if (strcmp(arg[iarg], "thermal") == 0) {
+      if (iarg + 2 > narg)
+        utils::missing_cmd_args(FLERR, std::string("fix ") + style + " thermal", error);
+      const std::string value = arg[iarg + 1];
+      if (value == "split")
+        noise_split = 1;
+      else if (value == "field")
+        noise_split = 0;
+      else
+        error->all(FLERR, iarg + 1, "Unknown fix {} thermal option: {}", style, value);
       iarg += 2;
     } else {
       const int nused = parse_extra(iarg, narg, arg);
@@ -380,17 +403,43 @@ void FixNVESpinSync::drift(double h)
 }
 
 /* ----------------------------------------------------------------------
-   one timestep of the spin directions with the semi-implicit midpoint
-   method (Mentink et al., J. Phys.: Condens. Matter 22, 176001 (2010)):
-
-       s(t+dt) = Cayley[ omega( s_mid, H(s_mid) ), dt ] s(t),
-       s_mid   = (s(t) + s(t+dt)) / |s(t) + s(t+dt)|,
-
-   solved by repeated iteration, one evaluation of the field of all spins
-   per iteration.  The Cayley rotation keeps the spin lengths exactly.
+   one timestep of the spin directions with the scheme use_sib (1: implicit
+   midpoint, 0: predictor-corrector): with a thermal field and noise split,
+   two half steps of the damped precession around a random rotation,
+   otherwise one step with the thermal field (if any) held fixed
 ------------------------------------------------------------------------- */
 
-void FixNVESpinSync::transverse_sib()
+void FixNVESpinSync::transverse(int use_sib)
+{
+  auto step = [this, use_sib](double h, int with_noise) {
+    if (use_sib)
+      transverse_sib(h, with_noise);
+    else
+      transverse_pc(h, with_noise);
+  };
+
+  if (noise_split && (sigma > 0.0)) {
+    step(0.5 * dtv, 0);
+    thermal_rotation(dtv);
+    step(0.5 * dtv, 0);
+  } else {
+    step(dtv, 1);
+  }
+}
+
+/* ----------------------------------------------------------------------
+   spin directions over time h with the semi-implicit midpoint method
+   (Mentink et al., J. Phys.: Condens. Matter 22, 176001 (2010)):
+
+       s(t+h) = Cayley[ omega( s_mid, H(s_mid) ), h ] s(t),
+       s_mid  = (s(t) + s(t+h)) / |s(t) + s(t+h)|,
+
+   solved by repeated iteration, one evaluation of the field of all spins
+   per iteration.  The Cayley rotation keeps the spin lengths exactly.  With
+   with_noise, the thermal field of a step h is added to H and held fixed.
+------------------------------------------------------------------------- */
+
+void FixNVESpinSync::transverse_sib(double h, int with_noise)
 {
   double **sp = atom->sp;
   int *mask = atom->mask;
@@ -399,7 +448,7 @@ void FixNVESpinSync::transverse_sib()
 
   sold.resize(3 * (size_t) nlocal);
   swork.resize(3 * (size_t) nlocal);
-  draw_noise(noise, 3, sigma);
+  draw_noise(noise, 3, with_noise ? sigma * sqrt(dtv / h) : 0.0);
 
   for (int i = 0; i < nlocal; i++)
     for (int d = 0; d < 3; d++) sold[3 * i + d] = swork[3 * i + d] = sp[i][d];
@@ -430,7 +479,7 @@ void FixNVESpinSync::transverse_sib()
       fmi[1] += noise[3 * i + 1];
       fmi[2] += noise[3 * i + 2];
       transverse_omega(i, sp[i], fmi, omega);
-      cayley(&sold[3 * i], omega, dtv, next);
+      cayley(&sold[3 * i], omega, h, next);
       normalize(next);
       for (int d = 0; d < 3; d++) {
         local = std::max(local, fabs(next[d] - swork[3 * i + d]));
@@ -456,17 +505,18 @@ void FixNVESpinSync::transverse_sib()
 }
 
 /* ----------------------------------------------------------------------
-   one timestep of the spin directions with the predictor-corrector (Heun)
-   method, two evaluations of the field of all spins:
+   spin directions over time h with the predictor-corrector (Heun) method,
+   two evaluations of the field of all spins:
 
-       k1 = ds/dt( s(t), H(s(t)) ),   s_p = normalized( s(t) + dt k1 )
-       k2 = ds/dt( s_p, H(s_p) ),     s(t+dt) = normalized( s(t) + dt (k1+k2)/2 )
+       k1 = ds/dt( s(t), H(s(t)) ),   s_p = normalized( s(t) + h k1 )
+       k2 = ds/dt( s_p, H(s_p) ),     s(t+h) = normalized( s(t) + h (k1+k2)/2 )
 
    Every slope is computed before any spin is moved, so that the update is
-   independent of the order of the atoms.
+   independent of the order of the atoms.  With with_noise, the thermal
+   field of a step h is added to H and held fixed.
 ------------------------------------------------------------------------- */
 
-void FixNVESpinSync::transverse_pc()
+void FixNVESpinSync::transverse_pc(double h, int with_noise)
 {
   double **sp = atom->sp;
   int *mask = atom->mask;
@@ -476,7 +526,7 @@ void FixNVESpinSync::transverse_pc()
   sold.resize(3 * (size_t) nlocal);
   swork.resize(3 * (size_t) nlocal);
   snew.resize(3 * (size_t) nlocal);
-  draw_noise(noise, 3, sigma);
+  draw_noise(noise, 3, with_noise ? sigma * sqrt(dtv / h) : 0.0);
 
   for (int i = 0; i < nlocal; i++)
     for (int d = 0; d < 3; d++) sold[3 * i + d] = sp[i][d];
@@ -492,7 +542,7 @@ void FixNVESpinSync::transverse_pc()
     fmi[1] += noise[3 * i + 1];
     fmi[2] += noise[3 * i + 2];
     transverse_rate(i, &sold[3 * i], fmi, &swork[3 * i]);
-    for (int d = 0; d < 3; d++) snew[3 * i + d] = sold[3 * i + d] + dtv * swork[3 * i + d];
+    for (int d = 0; d < 3; d++) snew[3 * i + d] = sold[3 * i + d] + h * swork[3 * i + d];
     normalize(&snew[3 * i]);
   }
 
@@ -515,7 +565,7 @@ void FixNVESpinSync::transverse_pc()
     fmi[2] += noise[3 * i + 2];
     transverse_rate(i, &snew[3 * i], fmi, k2);
     for (int d = 0; d < 3; d++)
-      swork[3 * i + d] = sold[3 * i + d] + 0.5 * dtv * (swork[3 * i + d] + k2[d]);
+      swork[3 * i + d] = sold[3 * i + d] + 0.5 * h * (swork[3 * i + d] + k2[d]);
     normalize(&swork[3 * i]);
   }
 
@@ -526,6 +576,64 @@ void FixNVESpinSync::transverse_pc()
     sp[i][2] = swork[3 * i + 2];
   }
   comm->forward_comm();
+}
+
+/* ----------------------------------------------------------------------
+   thermal part of the equation of motion over time h: every spin of the
+   bath is rotated about an axis perpendicular to it, by the tangent vector
+   v = h (omega x s) of the precession vector omega that the thermal field
+   eta of a step h alone would give.  Each component of v perpendicular to
+   s is Gaussian with variance 2 D h, D = alpha kB T / ((1 + alpha^2) hbar),
+   and the rotation by the angle |v| (a geodesic step on the sphere) is
+   rotational diffusion with the diffusion constant D (1 + D h / 3) to
+   second order; v is therefore scaled by sqrt(1 - D h / 3).
+
+   Components of the precession vector set by fix setforce/spin receive no
+   thermal contribution: the difference of the vectors that fix
+   setforce/spin returns for omega and for zero is the thermal precession
+   vector with these components removed.
+------------------------------------------------------------------------- */
+
+void FixNVESpinSync::thermal_rotation(double h)
+{
+  double **sp = atom->sp;
+  int *mask = atom->mask;
+  int nlocal = atom->nlocal;
+  if (igroup == atom->firstgroup) nlocal = atom->nfirst;
+
+  const double sig = sigma * sqrt(dtv / h);
+  draw_noise(noise, 3, sig);
+
+  for (int i = 0; i < nlocal; i++) {
+    if (!(mask[i] & groupbit) || !(mask[i] & bathbit)) continue;
+    const double a = damping(i);
+    double omega[3];
+    llg_omega(sp[i], &noise[3 * i], a, omega);
+    if (setforce_fix) {
+      double zero[3] = {0.0, 0.0, 0.0};
+      setforce_fix->single_setforce_spin(i, omega);
+      setforce_fix->single_setforce_spin(i, zero);
+      for (int d = 0; d < 3; d++) omega[d] -= zero[d];
+    }
+
+    // D h of this spin, from the variance of the tangent vector
+
+    const double dh = 0.5 * sig * sig * h * h / (1.0 + a * a);
+    const double scale = h * sqrt(std::max(0.0, 1.0 - dh / 3.0));
+    const double v[3] = {scale * (omega[1] * sp[i][2] - omega[2] * sp[i][1]),
+                         scale * (omega[2] * sp[i][0] - omega[0] * sp[i][2]),
+                         scale * (omega[0] * sp[i][1] - omega[1] * sp[i][0])};
+    const double theta = sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    if (theta <= 0.0) continue;
+    const double c = cos(theta);
+    const double sn = sin(theta) / theta;
+    double next[3] = {c * sp[i][0] + sn * v[0], c * sp[i][1] + sn * v[1],
+                      c * sp[i][2] + sn * v[2]};
+    normalize(next);
+    sp[i][0] = next[0];
+    sp[i][1] = next[1];
+    sp[i][2] = next[2];
+  }
 }
 
 /* ----------------------------------------------------------------------

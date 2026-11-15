@@ -17,7 +17,7 @@ Syntax
 * ID, group-ID are documented in :doc:`fix <fix>` command
 * style = *nve/spin/sib* or *nve/spin/pc*
 * zero or more keyword/value pairs may be appended
-* keyword = *lattice* or *field* or *maxiter* or *tol*
+* keyword = *lattice* or *field* or *thermal* or *maxiter* or *tol*
 
   .. parsed-literal::
 
@@ -28,8 +28,11 @@ Syntax
          auto = same as perspin
          perspin = evaluate the magnetic field of each spin separately
          global = evaluate the magnetic field by re-running the pair style
+       *thermal* value = *split* or *field*
+         split = random rotation of the spins between two half steps
+         field = thermal field held fixed within the timestep
        *maxiter* value = N (*nve/spin/sib* only)
-         N = largest number of field evaluations per timestep
+         N = largest number of field evaluations per implicit step
        *tol* value = delta (*nve/spin/sib* only)
          delta = convergence criterion for the change of the spin directions
 
@@ -108,13 +111,38 @@ To add damping and a thermal field, define :doc:`fix langevin/spin
 <fix_langevin_spin>` after any :doc:`fix precession/spin
 <fix_precession_spin>`: these fixes take the transverse damping, the
 temperature, and the random number seed from it.  Only spins in the
-groups of both fixes are damped and thermostatted.  The
-thermal field, a random field with a variance of
-:math:`2\alpha k_B T/(\hbar\,\Delta t)` per component, is drawn once per
-timestep and kept fixed within the timestep.  This corresponds to the
-Stratonovich interpretation of the stochastic equation of motion and
-samples the canonical distribution of the spin directions.  Without
-fix langevin/spin, the spins precess without damping.
+groups of both fixes are damped and thermostatted.  Without fix
+langevin/spin, the spins precess without damping.
+
+The thermal field alone makes each spin direction diffuse on the unit
+sphere, independently of the other spins and of the energy, with the
+rotational diffusion constant
+:math:`D = \alpha k_B T/((1+\alpha^2)\hbar)`.  The *thermal* keyword
+selects how this is included in a timestep.  With *split* (the default),
+a timestep consists of half a timestep of the damped precession without
+thermal field, a random rotation of every spin of the bath, and another
+half timestep of the damped precession.  The random rotation turns the
+spin about an axis perpendicular to it by a Gaussian angle with a
+variance of :math:`2D\Delta t\,(1 - D\Delta t/3)` per direction, which
+reproduces rotational diffusion over the timestep to second order in
+:math:`D\Delta t`.  This needs two implicit steps of half a timestep
+with *nve/spin/sib*, and four field evaluations per timestep with
+*nve/spin/pc*.  With *field*, a random field with a variance of
+:math:`2\alpha k_B T/(\hbar\,\Delta t)` per component is added to the
+precession field, drawn once per timestep and kept fixed within it (the
+Stratonovich interpretation of the stochastic equation), with one
+implicit step or two field evaluations per timestep.  Both sample the
+canonical distribution of the spin directions as the timestep goes to
+zero, but with *field* the rotations of the schemes slightly reduce the
+random rotations, and the sampled temperature is too low by a fraction
+of about :math:`c\,D\,\Delta t`, with :math:`c \approx 1.2` for
+*nve/spin/sib* and :math:`c \approx 2.3` for *nve/spin/pc*.  For example,
+for :math:`\alpha = 0.5` at 1000 K and a timestep of 0.2 fs,
+:math:`D\,\Delta t = 0.01`, and near the Curie temperature such a shift
+of the temperature changes the magnetization by several percent.  With
+*split*, no such error was found: for a single spin in a field with
+uniaxial anisotropy, :math:`|c| < 0.1` up to :math:`D\,\Delta t = 0.02`
+with both fixes.
 
 :doc:`Fix setforce/spin <fix_setforce_spin>` sets components of the
 precession vector :math:`\vec{\omega}_i`, after the damping and the
@@ -130,7 +158,8 @@ for every field evaluation, which is needed for magnetic pair styles
 that do not belong to the SPIN package and cannot compute the field of
 one spin alone, such as *pair_style deepspin* of DeePMD-kit.  In this
 case, the cost of a timestep is dominated by the field evaluations: two
-for *nve/spin/pc*, and up to *maxiter* for *nve/spin/sib*.
+for *nve/spin/pc*, and up to *maxiter* for *nve/spin/sib*, twice as many
+with a spin bath and *thermal split*.
 
 At the first timestep of each run, the magnetic field is rebuilt in the
 selected way and compared with the field of the force computation.  If
@@ -163,7 +192,7 @@ computes 6 values:
   #. largest field component perpendicular to a spin at that time (rad/ps)
   #. difference between two evaluations of the pair style with *field global* (rad/ps)
   #. average number of field evaluations per timestep in this run
-  #. fraction of the timesteps of this run that ended without convergence
+  #. fraction of the implicit steps of this run that ended without convergence
   #. largest final change of a spin direction component in this run
 
 These fixes are not invoked during :doc:`energy minimization <minimize>`.
@@ -201,8 +230,8 @@ Related commands
 Default
 """""""
 
-The keyword defaults are lattice = moving, field = auto, maxiter = 10,
-and tol = 1.0e-12.
+The keyword defaults are lattice = moving, field = auto, thermal =
+split, maxiter = 10, and tol = 1.0e-12.
 
 ----------
 

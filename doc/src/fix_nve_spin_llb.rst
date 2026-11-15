@@ -20,7 +20,7 @@ Syntax
        *pc* = predictor-corrector method
 
 * zero or more keyword/value pairs may be appended
-* keyword = *lattice* or *field* or *alpha_perp* or *alpha_par* or *maxiter* or *tol*
+* keyword = *lattice* or *field* or *thermal* or *alpha_perp* or *alpha_par* or *maxiter* or *tol*
 
   .. parsed-literal::
 
@@ -31,6 +31,9 @@ Syntax
          auto = same as perspin
          perspin = evaluate the magnetic field of each spin separately
          global = evaluate the magnetic field by re-running the pair style
+       *thermal* value = *split* or *field*
+         split = random rotation of the spin directions between two half steps
+         field = thermal field of the spin directions held fixed within the step
        *alpha_perp* value = transverse damping (unitless), only without fix langevin/spin/llb
        *alpha_par* value = longitudinal damping (unitless), only without fix langevin/spin/llb
        *maxiter* value = N
@@ -117,8 +120,21 @@ directions, and half a longitudinal step.  With scheme *sib*, both
 channels use the implicit midpoint method, solved by repeated iteration
 until no change exceeds *delta* or *N* field evaluations have been done;
 with scheme *pc*, both use the predictor-corrector (Heun) method.  The
-thermal noise is drawn once per step and kept fixed during the
-iterations.  When the atoms move, their positions are integrated with
+*thermal* keyword selects how the thermal noise is included.  With
+*field*, the noise of each of these steps is drawn once and kept fixed
+during its iterations.  With *split* (the default) and thermal noise,
+the deterministic parts and the noise are separated: a timestep consists
+of half a longitudinal step and half a step of the directions without
+noise, the thermal noise of both channels over a full timestep, and half
+a step of the directions and half a longitudinal step without noise.
+The thermal noise of the directions is the random rotation described
+for :doc:`fix nve/spin/sib <fix_nve_spin_sib>`, and that of the
+magnitudes is a Gaussian change of the logarithm of the magnitude with
+the variance :math:`2\alpha_\parallel k_B T\,\Delta t/\hbar`, both
+exact for the noise alone.  This removes the errors of first order in
+the timestep of the sampled distributions, which the implicit steps
+otherwise cause by reducing the effect of the noise, at the cost of one
+more step of the directions per timestep.  When the atoms move, their positions are integrated with
 velocity Verlet as in fix nve/spin/sib.  The *field* keyword works as for
 :doc:`fix nve/spin/sib <fix_nve_spin_sib>`.  Each longitudinal half step
 evaluates the longitudinal force once per iteration of the implicit step
@@ -126,12 +142,16 @@ with scheme *sib*, and twice with scheme *pc*; with *field global* and a
 pair style whose energy depends on the spin magnitudes, each evaluation
 re-runs the pair style.
 
-The finite timestep slightly biases the sampled distributions, by an
-amount that grows with the product of damping and timestep.  For a
-single spin in a Landau energy with its minimum at 1.74 Bohr magnetons, at
-300 K with :math:`\alpha_\parallel = 0.2` and a timestep of 0.1 fs, the
-average spin magnitude was 0.06 percent too large with scheme *sib*
-(0.04 percent at 0.05 fs) and within 0.01 percent with scheme *pc*.
+The finite timestep biases the sampled distributions, by an amount that
+grows with the product of damping and timestep.  For a single spin in a
+Landau energy with its minimum near 1.74 Bohr magnetons, a field of
+100 T, and a uniaxial anisotropy, at 300 K with
+:math:`\alpha_\perp = 0.5`, :math:`\alpha_\parallel = 0.05`, and a
+timestep of 0.8 fs, the average magnitude and the average direction
+along the field were within 0.03 and 0.2 percent of the exact values
+with *thermal split* and both schemes.  With *thermal field*, the
+average magnitude was 0.1 percent too large with scheme *sib*, and the
+average direction 1.5 percent (*sib*) and 2.9 percent (*pc*) too large.
 Verify that the quantities of interest do not change when the timestep
 is reduced.
 
@@ -196,8 +216,8 @@ Related commands
 Default
 """""""
 
-The keyword defaults are lattice = moving, field = auto, alpha_perp = 0.0,
-alpha_par = 0.0, maxiter = 10, and tol = 1.0e-12.
+The keyword defaults are lattice = moving, field = auto, thermal = split,
+alpha_perp = 0.0, alpha_par = 0.0, maxiter = 10, and tol = 1.0e-12.
 
 ----------
 
