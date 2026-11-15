@@ -83,8 +83,8 @@ direction, with a rotation that keeps the spin magnitude exactly.  The
 new directions are found by repeated iteration, which stops when no
 component of any spin direction changes by more than *delta* (keyword
 *tol*), or after *N* field evaluations (keyword *maxiter*).
-The converged step is symmetric in time and shows no long-time drift of
-the energy of an undamped system.  A small value of *maxiter*, such as 2
+The converged step is symmetric in time and, also when the atoms move,
+shows no long-time drift of the energy of an undamped system.  A small value of *maxiter*, such as 2
 or 3, reduces the cost for expensive potentials at the price of a less
 accurate step.
 
@@ -96,9 +96,13 @@ for simulations with a spin bath, for example for sampling at finite
 temperature.
 
 When the atoms move (*lattice moving*), their positions and velocities
-are integrated with velocity Verlet.  The spins are advanced once per
-timestep, at the new atomic positions, and the forces of the following
-velocity update are computed with the new positions and spins.
+are integrated with velocity Verlet, and the spin step is placed in the
+middle of the position update: half a velocity update, half a position
+update, the spin step at these positions, the second half of the position
+update, and, with the forces of the new positions and spins, the second
+half of the velocity update.  This splitting is symmetric in time, so the
+error of the energy exchanged between spins and lattice is of second
+order in the timestep, as for :doc:`fix nve/spin <fix_nve_spin>`.
 
 To add damping and a thermal field, define :doc:`fix langevin/spin
 <fix_langevin_spin>` after any :doc:`fix precession/spin

@@ -96,6 +96,8 @@ class FixNVESpinSync : public Fix {
   void transverse_sib();
   void transverse_pc();
 
+  void kick();
+  void drift(double);
   void refresh_field();
   void spin_field(int, double *);
   virtual void rebuild_field(int, double *);

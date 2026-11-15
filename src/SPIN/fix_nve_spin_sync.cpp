@@ -35,10 +35,12 @@
    the field is evaluated at several intermediate configurations, as the
    Stratonovich interpretation of the stochastic equation requires.
 
-   The atom positions are integrated with velocity Verlet: a half-step
-   velocity update and a full position update, then the spin update at the
-   new positions, and the second half-step velocity update with the forces
-   of the new configuration.
+   The atom positions are integrated with velocity Verlet, the spin update
+   being placed in the middle of the position update: a half-step velocity
+   update, half a position update, the spin update, the second half of the
+   position update, and the second half-step velocity update with the
+   forces of the new configuration.  This splitting is symmetric in time,
+   so the coupled spin-lattice step is second order in the timestep.
 
    The effective field at an intermediate configuration is obtained either
    spin by spin, from PairSpin::compute_single_pair() and the single-spin
@@ -309,39 +311,34 @@ void FixNVESpinSync::initial_integrate(int /*vflag*/)
     field_checked = 1;
   }
 
-  if (lattice_flag) {
-    double **x = atom->x;
-    double **v = atom->v;
-    double **f = atom->f;
-    double *rmass = atom->rmass;
-    double *mass = atom->mass;
-    int *type = atom->type;
-    int *mask = atom->mask;
-    int nlocal = atom->nlocal;
-    if (igroup == atom->firstgroup) nlocal = atom->nfirst;
+  // half a velocity update and half a position update, the spin step at the
+  // positions of the middle of the timestep, and the second half of the
+  // position update: a splitting that is symmetric in time
 
-    for (int i = 0; i < nlocal; i++)
-      if (mask[i] & groupbit) {
-        const double dtfm = dtf / (rmass ? rmass[i] : mass[type[i]]);
-        v[i][0] += dtfm * f[i][0];
-        v[i][1] += dtfm * f[i][1];
-        v[i][2] += dtfm * f[i][2];
-        x[i][0] += dtv * v[i][0];
-        x[i][1] += dtv * v[i][1];
-        x[i][2] += dtv * v[i][2];
-      }
+  if (lattice_flag) {
+    kick();
+    drift(0.5 * dtv);
   }
 
   advance_spins();
   nsteps++;
+
+  if (lattice_flag) drift(0.5 * dtv);
 }
 
 /* ---------------------------------------------------------------------- */
 
 void FixNVESpinSync::final_integrate()
 {
-  if (!lattice_flag) return;
+  if (lattice_flag) kick();
+}
 
+/* ----------------------------------------------------------------------
+   half a timestep of the velocities of the atoms of the group
+------------------------------------------------------------------------- */
+
+void FixNVESpinSync::kick()
+{
   double **v = atom->v;
   double **f = atom->f;
   double *rmass = atom->rmass;
@@ -357,6 +354,28 @@ void FixNVESpinSync::final_integrate()
       v[i][0] += dtfm * f[i][0];
       v[i][1] += dtfm * f[i][1];
       v[i][2] += dtfm * f[i][2];
+    }
+}
+
+/* ----------------------------------------------------------------------
+   move the atoms of the group with their velocities over time h; the spin
+   steps communicate the new positions to the ghost atoms together with the
+   spins
+------------------------------------------------------------------------- */
+
+void FixNVESpinSync::drift(double h)
+{
+  double **x = atom->x;
+  double **v = atom->v;
+  int *mask = atom->mask;
+  int nlocal = atom->nlocal;
+  if (igroup == atom->firstgroup) nlocal = atom->nfirst;
+
+  for (int i = 0; i < nlocal; i++)
+    if (mask[i] & groupbit) {
+      x[i][0] += h * v[i][0];
+      x[i][1] += h * v[i][1];
+      x[i][2] += h * v[i][2];
     }
 }
 

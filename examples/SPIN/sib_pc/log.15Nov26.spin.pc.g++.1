@@ -1,4 +1,4 @@
-LAMMPS (30 Sep 2026 - Development - patch_30Sep2026-1065-g9c75801488-modified)
+LAMMPS (30 Sep 2026 - Development - patch_30Sep2026-1071-gff600773e2-modified)
 # fcc cobalt: spin-lattice dynamics with a spin bath and fix nve/spin/pc
 #
 # All spins are advanced together with the predictor-corrector method.  The
@@ -15,7 +15,7 @@ Lattice spacing in x,y,z = 3.54 3.54 3.54
 region          box block 0.0 4.0 0.0 4.0 0.0 4.0
 create_box      1 box
 Created orthogonal box = (0 0 0) to (14.16 14.16 14.16)
-  1 by 2 by 2 MPI processor grid
+  1 by 1 by 1 MPI processor grid
 create_atoms    1 box
 Created 256 atoms
   using lattice units in orthogonal box = (0 0 0) to (14.16 14.16 14.16)
@@ -66,45 +66,45 @@ Neighbor list info ...
       pair build: full/bin/atomonly
       stencil: full/bin/3d
       bin: standard
-Per MPI rank memory allocation (min/avg/max) = 5.654 | 5.654 | 5.654 Mbytes
+Per MPI rank memory allocation (min/avg/max) = 5.708 | 5.708 | 5.708 Mbytes
    Step          Time           Temp        v_magnorm        PotEng         TotEng    
-         0                     0      200.01086034278   0.0623486229526497    -1120.72685973826    -1114.13423437184
-       100                  0.01       164.6788604586   0.0651018411137922    -1121.91442882681    -1116.48639341458
-       200                  0.02      88.301349707246   0.0850033540065848    -1122.26262966237    -1119.35209911933
-       300                  0.03     39.9002671087167    0.121577811086858    -1123.90912030249    -1122.59395415293
-       400                  0.04      49.892009425718    0.146743040789029    -1127.99062641664     -1126.3461190816
-       500                  0.05     86.4708992959106    0.205434053784513     -1132.4489082324    -1129.59871178217
-       600                  0.06     106.789263564432    0.223352696182016    -1136.00535886718    -1132.48544196552
-       700                  0.07     105.161794737197    0.241773164752261     -1138.8378639832    -1135.37159062997
-       800                  0.08     103.701240725621    0.297621035987879    -1142.18194691841    -1138.76381537813
-       900                  0.09     114.038719063072    0.319687152729528    -1145.09853780396    -1141.33966915672
-      1000                   0.1     123.646983907599    0.374260222563113    -1147.58610340711    -1143.51053350459
-Loop time of 0.123736 on 4 procs for 1000 steps with 256 atoms
+         0                     0      200.01086034278   0.0623486229526497    -1120.72685973834    -1114.13423437192
+       100                  0.01     164.510159556325   0.0887294768524517    -1122.33584848682    -1116.91337368187
+       200                  0.02     88.4867449415036    0.108801554340523    -1123.32974903938    -1120.41310762154
+       300                  0.03     40.1702966507336    0.161425707567434    -1125.90382774319     -1124.5797610589
+       400                  0.04     50.5415005339847     0.20317556175487    -1129.37938821158    -1127.71347278125
+       500                  0.05     86.7142109258391    0.250455722713394    -1134.19138055003    -1131.33316422318
+       600                  0.06     106.680171351178    0.292915390926889    -1138.02548010495    -1134.50915902849
+       700                  0.07     105.708366583093    0.336164544326878     -1140.7709310835    -1137.28664199148
+       800                  0.08     104.926597463234    0.384380475241427    -1143.87631462709    -1140.41779369047
+       900                  0.09     114.669874718569     0.44631775723819    -1147.47457102532    -1143.69489864384
+      1000                   0.1     123.542198818855    0.491701927001764    -1149.75123278675    -1145.67911674085
+Loop time of 0.554933 on 1 procs for 1000 steps with 256 atoms
 
-Performance: 69.826 ns/day, 0.344 hours/ns, 8081.727 timesteps/s, 2.069 Matom-step/s
-99.3% CPU use with 4 MPI tasks x no OpenMP threads
+Performance: 15.569 ns/day, 1.541 hours/ns, 1802.020 timesteps/s, 461.317 katom-step/s
+93.8% CPU use with 1 MPI tasks x no OpenMP threads
 
 MPI task timing breakdown:
 Section |  min time  |  avg time  |  max time  |%varavg| %total
 ---------------------------------------------------------------
-Pair    | 0.049782   | 0.050901   | 0.053026   |   0.6 | 41.14
-Neigh   | 0.00083987 | 0.00086319 | 0.00089496 |   0.0 |  0.70
-Comm    | 0.023031   | 0.024996   | 0.025951   |   0.7 | 20.20
-Output  | 8.0293e-05 | 8.1855e-05 | 8.4499e-05 |   0.0 |  0.07
-Modify  | 0.045753   | 0.045931   | 0.046108   |   0.1 | 37.12
-Other   |            | 0.0009626  |            |       |  0.78
+Pair    | 0.37237    | 0.37237    | 0.37237    |   0.0 | 67.10
+Neigh   | 0.0046587  | 0.0046587  | 0.0046587  |   0.0 |  0.84
+Comm    | 0.029313   | 0.029313   | 0.029313   |   0.0 |  5.28
+Output  | 0.00019158 | 0.00019158 | 0.00019158 |   0.0 |  0.03
+Modify  | 0.14702    | 0.14702    | 0.14702    |   0.0 | 26.49
+Other   |            | 0.001377   |            |       |  0.25
 
-Nlocal:             64 ave          71 max          58 min
-Histogram: 1 1 0 0 0 0 1 0 0 1
-Nghost:            843 ave         849 max         836 min
-Histogram: 1 0 0 1 0 0 0 0 1 1
-Neighs:           3205 ave        3629 max        2894 min
-Histogram: 1 1 0 0 0 1 0 0 0 1
-FullNghs:         1152 ave        1278 max        1044 min
-Histogram: 1 1 0 0 0 0 1 0 0 1
+Nlocal:            256 ave         256 max         256 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:           1431 ave        1431 max        1431 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:          12864 ave       12864 max       12864 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+FullNghs:         4608 ave        4608 max        4608 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
 
-Total # of neighbors = 12820
-Ave neighs/atom = 50.078125
+Total # of neighbors = 12864
+Ave neighs/atom = 50.25
 Neighbor list builds = 7
 Dangerous builds = 0
 Total wall time: 0:00:00
