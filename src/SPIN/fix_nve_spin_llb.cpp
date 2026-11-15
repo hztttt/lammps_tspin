@@ -89,6 +89,13 @@
 
 using namespace LAMMPS_NS;
 
+// secant steps of the longitudinal implicit step: smallest change of u from
+// which the slope is estimated, and largest slope used (a slope near or above
+// one would make the step large and is not expected for a stable well)
+
+static constexpr double SECANT_MIN = 1.0e-13;
+static constexpr double SECANT_MAX = 0.5;
+
 /* ---------------------------------------------------------------------- */
 
 FixNVESpinLLB::FixNVESpinLLB(LAMMPS *lmp, int narg, char **arg) :
@@ -392,9 +399,16 @@ void FixNVESpinLLB::longitudinal_noise(double h)
 }
 
 /* ----------------------------------------------------------------------
-   implicit midpoint step of u = ln |S| over time h, solved by iteration:
-     u(t+h) = u(t) + h du/dt( exp[(u(t) + u(t+h))/2] ) + noise
-   with the noise of a step h only with with_noise
+   implicit midpoint step of u = ln |S| over time h,
+     u(t+h) = g(u(t+h)) = u(t) + h du/dt( exp[(u(t) + u(t+h))/2] ) + noise,
+   with the noise of a step h only with with_noise.  The equation is solved
+   by iteration, one evaluation of the longitudinal drive of all spins per
+   iteration.  The plain iteration u <- g(u) diverges for a spin whose
+   drive changes quickly with its magnitude, h |dg/du| > 1, as for large
+   magnitudes in a steep Landau energy, so from the second iteration on
+   each spin takes a secant step with the slope of g estimated from its
+   last two iterates, which needs no additional evaluation and converges
+   to the same solution.
 ------------------------------------------------------------------------- */
 
 void FixNVESpinLLB::longitudinal_sib(double h, int with_noise)
@@ -405,6 +419,9 @@ void FixNVESpinLLB::longitudinal_sib(double h, int with_noise)
   start_longitudinal(h, with_noise);
   const int n = (int) active.size();
 
+  uprev.assign(n, 0.0);
+  gprev.assign(n, 0.0);
+
   double residual = 0.0;
   for (int iter = 0; iter < maxiter; iter++) {
     for (int i = 0; i < n; i++)
@@ -414,8 +431,18 @@ void FixNVESpinLLB::longitudinal_sib(double h, int with_noise)
     double local = 0.0;
     for (int i = 0; i < n; i++) {
       if (!active[i]) continue;
-      const double unew = u0[i] + h * longitudinal_rate(i) + lnoise[i];
+      const double g = u0[i] + h * longitudinal_rate(i) + lnoise[i];
+      double unew = g;
+      if (iter > 0) {
+        const double du = u1[i] - uprev[i];
+        if (fabs(du) > SECANT_MIN) {
+          const double slope = std::min((g - gprev[i]) / du, SECANT_MAX);
+          unew = u1[i] + (g - u1[i]) / (1.0 - slope);
+        }
+      }
       local = std::max(local, fabs(unew - u1[i]));
+      uprev[i] = u1[i];
+      gprev[i] = g;
       u1[i] = unew;
     }
 

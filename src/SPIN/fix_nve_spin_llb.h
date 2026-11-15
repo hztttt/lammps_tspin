@@ -52,7 +52,7 @@ class FixNVESpinLLB : public FixNVESpinSync {
   std::vector<class SpinFieldFix *> modulus_fixes;
   std::vector<class PairSpin *> full_pairs;    // spin pair styles with a longitudinal force
 
-  std::vector<double> u0, u1, k1, lnoise;
+  std::vector<double> u0, u1, k1, lnoise, uprev, gprev;
   std::vector<int> active;
 
   int parse_extra(int, int, char **) override;

@@ -119,7 +119,10 @@ Each timestep consists of half a longitudinal step, a full step of the
 directions, and half a longitudinal step.  With scheme *sib*, both
 channels use the implicit midpoint method, solved by repeated iteration
 until no change exceeds *delta* or *N* field evaluations have been done;
-with scheme *pc*, both use the predictor-corrector (Heun) method.  The
+for the magnitudes, every iteration after the first is a secant step for
+each spin, which converges also where the longitudinal force changes
+quickly with the magnitude, as for large magnitudes in a steep Landau
+energy.  With scheme *pc*, both use the predictor-corrector (Heun) method.  The
 *thermal* keyword selects how the thermal noise is included.  With
 *field*, the noise of each of these steps is drawn once and kept fixed
 during its iterations.  With *split* (the default) and thermal noise,
