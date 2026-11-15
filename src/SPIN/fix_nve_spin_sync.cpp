@@ -410,7 +410,7 @@ void FixNVESpinSync::transverse_sib()
       fmi[0] += noise[3 * i];
       fmi[1] += noise[3 * i + 1];
       fmi[2] += noise[3 * i + 2];
-      llg_omega(sp[i], fmi, damping(i), omega);
+      transverse_omega(i, sp[i], fmi, omega);
       cayley(&sold[3 * i], omega, dtv, next);
       normalize(next);
       for (int d = 0; d < 3; d++) {
@@ -472,7 +472,7 @@ void FixNVESpinSync::transverse_pc()
     fmi[0] += noise[3 * i];
     fmi[1] += noise[3 * i + 1];
     fmi[2] += noise[3 * i + 2];
-    llg_rate(&sold[3 * i], fmi, damping(i), &swork[3 * i]);
+    transverse_rate(i, &sold[3 * i], fmi, &swork[3 * i]);
     for (int d = 0; d < 3; d++) snew[3 * i + d] = sold[3 * i + d] + dtv * swork[3 * i + d];
     normalize(&snew[3 * i]);
   }
@@ -494,7 +494,7 @@ void FixNVESpinSync::transverse_pc()
     fmi[0] += noise[3 * i];
     fmi[1] += noise[3 * i + 1];
     fmi[2] += noise[3 * i + 2];
-    llg_rate(&snew[3 * i], fmi, damping(i), k2);
+    transverse_rate(i, &snew[3 * i], fmi, k2);
     for (int d = 0; d < 3; d++)
       swork[3 * i + d] = sold[3 * i + d] + 0.5 * dtv * (swork[3 * i + d] + k2[d]);
     normalize(&swork[3 * i]);
@@ -559,8 +559,9 @@ void FixNVESpinSync::evaluate_pair()
 
 /* ----------------------------------------------------------------------
    precession field on local atom i at the current spins: the field of the
-   pair styles, fix precession/spin, and fix setforce/spin.  Fixes acting on
-   the spin magnitudes only add radial fields, which do not move the spin
+   pair styles and fix precession/spin.  Fix setforce/spin acts on the
+   precession vector instead, see transverse_omega().  Fixes acting on the
+   spin magnitudes only add radial fields, which do not move the spin
    directions and are not included.
 ------------------------------------------------------------------------- */
 
@@ -581,17 +582,17 @@ void FixNVESpinSync::spin_field(int i, double *fmi)
 
   double spi[3] = {sp[i][0], sp[i][1], sp[i][2]};
   for (auto &ifix : precession_fixes) ifix->compute_single_precession(i, spi, fmi);
-
-  if (setforce_fix) setforce_fix->single_setforce_spin(i, fmi);
 }
 
 /* ----------------------------------------------------------------------
-   field of local atom i as the force computation builds it, for the check
+   field of local atom i as the force computation builds it, for the check:
+   there fix setforce/spin overwrites the field itself
 ------------------------------------------------------------------------- */
 
 void FixNVESpinSync::rebuild_field(int i, double *fmi)
 {
   spin_field(i, fmi);
+  if (setforce_fix) setforce_fix->single_setforce_spin(i, fmi);
 }
 
 /* ----------------------------------------------------------------------
@@ -709,13 +710,26 @@ void FixNVESpinSync::llg_omega(const double *s, const double *h, double a, doubl
 }
 
 /* ----------------------------------------------------------------------
-   time derivative of spin s in field h:  ds/dt = omega x s
+   precession vector of local atom i with spin s in field h, including the
+   damping of the bath; fix setforce/spin is applied to it last, after the
+   thermal field and the damping, as fix nve/spin does, so that a spin whose
+   precession vector is set to zero does not move at all
 ------------------------------------------------------------------------- */
 
-void FixNVESpinSync::llg_rate(const double *s, const double *h, double a, double *rate)
+void FixNVESpinSync::transverse_omega(int i, const double *s, const double *h, double *omega)
+{
+  llg_omega(s, h, damping(i), omega);
+  if (setforce_fix) setforce_fix->single_setforce_spin(i, omega);
+}
+
+/* ----------------------------------------------------------------------
+   time derivative of spin s of local atom i in field h:  ds/dt = omega x s
+------------------------------------------------------------------------- */
+
+void FixNVESpinSync::transverse_rate(int i, const double *s, const double *h, double *rate)
 {
   double omega[3];
-  llg_omega(s, h, a, omega);
+  transverse_omega(i, s, h, omega);
   rate[0] = omega[1] * s[2] - omega[2] * s[1];
   rate[1] = omega[2] * s[0] - omega[0] * s[2];
   rate[2] = omega[0] * s[1] - omega[1] * s[0];

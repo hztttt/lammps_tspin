@@ -103,9 +103,10 @@ class FixNVESpinSync : public Fix {
   void draw_noise(std::vector<double> &, int, double);
   double damping(int) const;
   void evaluate_pair();
+  void transverse_omega(int, const double *, const double *, double *);
+  void transverse_rate(int, const double *, const double *, double *);
 
   static void llg_omega(const double *, const double *, double, double *);
-  static void llg_rate(const double *, const double *, double, double *);
   static void cayley(const double *, const double *, double, double *);
   static void normalize(double *);
 };

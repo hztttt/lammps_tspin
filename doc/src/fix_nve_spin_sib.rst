@@ -112,11 +112,16 @@ Stratonovich interpretation of the stochastic equation of motion and
 samples the canonical distribution of the spin directions.  Without
 fix langevin/spin, the spins precess without damping.
 
+:doc:`Fix setforce/spin <fix_setforce_spin>` sets components of the
+precession vector :math:`\vec{\omega}_i`, after the damping and the
+thermal field have been included, as with :doc:`fix nve/spin
+<fix_nve_spin>`.  Spins whose precession vector is set to zero therefore
+keep their directions also in contact with a spin bath.
+
 The *field* keyword selects how the magnetic field is evaluated at the
 intermediate configurations of a timestep.  With *perspin* (the default),
-the field of each spin is computed from the spin pair styles, :doc:`fix
-precession/spin <fix_precession_spin>`, and :doc:`fix setforce/spin
-<fix_setforce_spin>`.  With *global*, the pair style is run as a whole
+the field of each spin is computed from the spin pair styles and :doc:`fix
+precession/spin <fix_precession_spin>`.  With *global*, the pair style is run as a whole
 for every field evaluation, which is needed for magnetic pair styles
 that do not belong to the SPIN package and cannot compute the field of
 one spin alone, such as *pair_style deepspin* of DeePMD-kit.  In this
